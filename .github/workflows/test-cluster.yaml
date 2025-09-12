@@ -1,0 +1,224 @@
+name: Test Apicurio Registry Release
+on:
+  workflow_call:
+    inputs:
+      cluster-version:
+        type: string
+        required: true
+      cluster-name:
+        type: string
+        required: true
+      release-version:
+        type: string
+        description: >-
+          Released version to test. This is used to select which operator version to install,
+          currently from the upstream repository.
+        required: true
+      operator-image:
+        type: string
+        description: Override the operator image used when installing the operator (optional).
+        required: false
+      app-image:
+        type: string
+        description: Override the Apicurio Registry application/server image used by the operator (optional).
+        required: false
+      ui-image:
+        type: string
+        description: Override the Apicurio Registry UI image used by the operator (optional).
+        required: false
+      testsuite-git-ref:
+        type: string
+        description: >-
+          Upstream Apicurio Registry test suite is used to run the tests. 
+          This git reference (e.g. tag or branch) is used to checkout the test suite code.
+        required: true
+      is-downstream:
+        type: boolean
+        description: >-
+          Run the tests in downstream mode. Currently, it is only used in the UI tests 
+          to check that the UI is productized.
+        required: true
+      skip-cluster-installation:
+        type: boolean
+        description: Skip cluster install
+        required: true
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  COMPUTE_NODES: 6
+  CONTROL_PLANE_NODES: 3
+  DOCKER_EMAIL: ${{ secrets.DOCKER_EMAIL }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  DOCKER_SERVER: ${{ secrets.DOCKER_SERVER }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  OPENSHIFT_PULL_SECRET: ${{ secrets.OPENSHIFT_PULL_SECRET }}
+  SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+
+jobs:
+
+  setup:
+    name: Setup OpenShift ${{ inputs.cluster-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+
+      - name: Check skip-cluster-installation
+        if: ${{ inputs.skip-cluster-installation == 'true' && inputs.cluster-version != '4.19' }}
+        run: |
+          echo "Error: skip-cluster-installation can only be true for cluster-version 4.19 for now."
+          exit 1
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "apicurio-ci"
+          git config user.email "apicurio.ci@gmail.com"
+          git config pull.rebase true
+
+      - name: Install OpenShift cluster
+        if: ${{ inputs.skip-cluster-installation != 'true' }}
+        run: |
+          ./install-cluster.sh --cluster ${{ inputs.cluster-name }} \
+              --okdVersion ${{ inputs.cluster-version }} \
+              --controlPlaneNodes $CONTROL_PLANE_NODES \
+              --computeNodes $COMPUTE_NODES
+
+      - name: Restore cluster state
+        if: ${{ inputs.skip-cluster-installation == 'true' }}
+        uses: ./.github/actions/restore-cluster-state
+        with:
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Install OpenShift Docker Pull Credentials # TODO: skip or check existing installation?
+        run: |
+          ./configure-pull-secret.sh --cluster ${{ inputs.cluster-name }}
+
+      - name: Install Apicurio Registry Operator # TODO: Skip or check existing installation?
+        run: |
+          ./install-apicurio-operator.sh --cluster ${{ inputs.cluster-name }} \
+              --version ${{ inputs.release-version }} \
+              --operatorImage ${{ inputs.operator-image }} \
+              --appImage ${{ inputs.app-image }} \
+              --uiImage ${{ inputs.ui-image }}
+
+      - name: Commit TLS Certs
+        # TODO: if: ${{ inputs.skip-cluster-installation != 'true' }} ?
+        run: |
+          git pull origin main
+          git add certificates
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m '(re)generated TLS certificate for cluster ${{ inputs.cluster-name }}'
+            git push origin main
+          fi
+
+      - name: Save cluster state
+        if: ${{ inputs.skip-cluster-installation != 'true' }}
+        uses: ./.github/actions/save-cluster-state
+        with:
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+
+  storage-other:
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        sql-profile: [ inmemory, mysql ]
+    steps:
+
+      - name: Run SQL test for profile ${{ matrix.sql-profile }}
+        uses: ./.github/workflows/test-storage-other.yaml
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          testsuite-git-ref: ${{ inputs.testsuite-git-ref }}
+          is-downstream: ${{ inputs.is-downstream }}
+          sql-profile: ${{ matrix.sql-profile }}
+
+  storage-postgresql:
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        postgresql-version: [ "17", "12" ]
+    steps:
+
+      - name: Run PostgreSQL ${{ matrix.postgresql-version }}
+        uses: ./.github/workflows/test-storage-postgresql.yaml
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          testsuite-git-ref: ${{ inputs.testsuite-git-ref }}
+          is-downstream: ${{ inputs.is-downstream }}
+          postgresql-version: ${{ matrix.postgresql-version }}
+
+  storage-kafkasql:
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        strimzi-version: [ "0.47.0", "0.43.0" ]
+        include:
+          - strimzi-version: "0.47.0"
+            strimzi-version-k8ssafe: "0-47-0"
+          - strimzi-version: "0.43.0"
+            strimzi-version-k8ssafe: "0-43-0"
+    steps:
+
+      - name: Run KafkaSQL ${{ matrix.strimzi-version }}
+        uses: ./.github/workflows/test-storage-kafkasql.yaml
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          testsuite-git-ref: ${{ inputs.testsuite-git-ref }}
+          is-downstream: ${{ inputs.is-downstream }}
+          strimzi-version: ${{ matrix.strimzi-version }}
+          strimzi-version-k8ssafe: ${{ matrix.strimzi-version-k8ssafe }}
+
+  authn:
+    name: Authentication Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Run Authentication tests
+        uses: ./.github/workflows/test-authn.yaml
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          testsuite-git-ref: ${{ inputs.testsuite-git-ref }}
+
+  teardown:
+    name: Teardown OpenShift ${{ inputs.cluster-version }}
+    runs-on: ubuntu-latest
+    needs:
+      - storage-other
+      - storage-postgresql
+      - storage-kafkasql
+      - authn
+    if: ${{ inputs.skip-cluster-installation != 'true' }}
+    timeout-minutes: 20
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Restore cluster state
+        uses: ./.github/actions/restore-cluster-state
+        with:
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Destroy OpenShift cluster
+        run: |
+          ./destroy-cluster.sh --cluster ${{ inputs.cluster-name }}
+
+      - name: Cleanup cluster state
+        uses: ./.github/actions/cleanup-cluster-state
+        with:
+          github-token: ${{ secrets.ACCESS_TOKEN }}

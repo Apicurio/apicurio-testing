@@ -1,0 +1,101 @@
+name: Run DAST Scan
+on:
+  workflow_call:
+    inputs:
+      cluster-name:
+        type: string
+        required: true
+      namespace:
+        type: string
+        required: true
+      config-file-suffix:
+        type: string
+        required: true
+      auth-enabled:
+        type: boolean
+        required: true
+
+env:
+  RAPIDAST_TAG: development
+
+jobs:
+
+  dast-scan:
+    name: DAST Scan - ${{ inputs.config-file-suffix }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+
+      - name: Configure
+        run: |
+          if [ "${{ inputs.auth-enabled }}" = "true" ]; then
+            export DAST_ARGS="--authEnabled true"
+          else
+            export DAST_ARGS=""
+          fi
+          echo "DAST_ARGS=$DAST_ARGS" >> $GITHUB_ENV
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Restore cluster state
+        uses: ./.github/actions/restore-cluster-state
+        with:
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Run DAST Scanner - v3 - ${{ inputs.config-file-suffix }}
+        run: |
+          ./run-dast-scan.sh --cluster ${{ inputs.cluster-name }} \
+            --namespace ${{ inputs.namespace }} \
+            --config "registry_v3_${{ inputs.config-file-suffix }}.yaml" \
+            --tag $RAPIDAST_TAG \
+            $DAST_ARGS
+
+      - name: Commit DAST scan results
+        uses: ./.github/actions/commit-dast-scan-results
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          namespace: ${{ inputs.namespace }}
+          job-name: ${{ github.job }}
+          subdirectory-name: registry-v3-${{ inputs.config-file-suffix }}
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Run DAST Scanner - v2 - ${{ inputs.config-file-suffix }}
+        run: |
+          ./run-dast-scan.sh --cluster ${{ inputs.cluster-name }} \
+            --namespace ${{ inputs.namespace }} \
+            --config registry_v2_${{ inputs.config-file-suffix }}.yaml \
+            --tag $RAPIDAST_TAG \
+            $DAST_ARGS
+
+      - name: Commit DAST scan results
+        uses: ./.github/actions/commit-dast-scan-results
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          namespace: ${{ inputs.namespace }}
+          job-name: ${{ github.job }}
+          subdirectory-name: registry-v2-${{ inputs.config-file-suffix }}
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Run DAST Scanner - ccompat v7 - ${{ inputs.config-file-suffix }}
+        run: |
+          ./run-dast-scan.sh --cluster ${{ inputs.cluster-name }} \
+            --namespace ${{ inputs.namespace }} \
+            --config ccompat_v7_${{ inputs.config-file-suffix }}.yaml \
+            --tag $RAPIDAST_TAG \
+            $DAST_ARGS
+
+      - name: Commit DAST scan results
+        uses: ./.github/actions/commit-dast-scan-results
+        with:
+          cluster-name: ${{ inputs.cluster-name }}
+          namespace: ${{ inputs.namespace }}
+          job-name: ${{ github.job }}
+          subdirectory-name: ccompat-v7-${{ inputs.config-file-suffix }}
+          github-token: ${{ secrets.ACCESS_TOKEN }}
