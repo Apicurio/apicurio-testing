@@ -1,8 +1,7 @@
 
 [id="registry-migration_{context}"]
-= Migration from {registry} {registry-v2} to 3.x
+= Introduction to migration from {registry} {registry-v2} to 3.x
 
-== Introduction
 [role="_abstract"]
 {registry} 3.x includes a redesigned data model, a reworked REST API, and a refreshed SDK ecosystem compared to the previous {registry} {registry-v2} release.
 This section outlines the major changes between {registry} {registry-v2} and version 3.x so that you can plan your upgrade activities.
@@ -11,14 +10,20 @@ Because of the breaking changes in 3.x, there is no in-place upgrade. You must s
 
 When migrating to version 3.x, take the following areas into account:
 
-=== Updated data model and governance
+
+Updated data model and governance::
++
+--
 {registry} 3.x separates artifact metadata from version metadata and introduces first-class support for empty artifacts. These capabilities let you prepare governance metadata, rules, and branch structures before the first version exists. Additional highlights include:
 
 * Artifact metadata is now managed independently from version metadata.
 * Groups and artifacts can define custom labels to improve categorization.
 * Users can create and manage custom branches, and the `latest` branch is implemented as a system managed branch.
+--
 
-=== Core v3 REST API
+Core v3 REST API::
++
+--
 The v3 REST API focuses on consistency and discoverability:
 
 * Group management now covers descriptions, owners, labels, and hierarchical rules.
@@ -26,87 +31,87 @@ The v3 REST API focuses on consistency and discoverability:
 * Version-focused endpoints streamline content management and require explicit `Content-Type` headers.
 * A `dryRun` query parameter replaces the former `/test` endpoints.
 * A dedicated Branch API enables multitrack artifact development.
+--
 
-=== Re-engineered Kafka storage variant
+
+Re-engineered Kafka storage variant::
 The KafkaSQL storage implementation is now optimized for stability and maintainability.
 The new design reduces startup times for large installations.
 
-=== Generated SDKs powered by Kiota
+== Generated SDKs powered by Kiota
 {registry} 3.x ships Kiota-generated SDKs that mirror the REST API structure across languages.
 Updated libraries are available for Java, TypeScript, Python, and Go, providing lightweight, type-safe clients with minimal dependencies and consistent naming.
 
 
-[id="migration-planning_{context}"]
-== Migration planning
+[id="c-migration-planning_{context}"]
+== Planning the migration
 
 [role="_abstract"]
-Successful migration requires careful planning to minimize downtime and ensure data consistency. This section covers downtime expectations, resource requirements, and strategies for a smooth transition from {registry} {registry-v2} to 3.x.
-
-=== Downtime expectations
+Successful migration requires careful planning to minimize downtime and ensure data consistency. This section covers downtime expectations, resource requirements, and reference implementations. Select the scenario that best aligns with your current architecture and customize the specific steps to accommodate your infrastructure constraints.
 
 The migration approach you choose determines the amount of downtime your registry will experience:
 
-*Zero-downtime migration (recommended):*
+.Zero-downtime migration (recommended):
 
-* Use a reverse proxy or load balancer (nginx, HAProxy, etc.) to manage traffic routing
-* Run {registry} {registry-v2} and 3.x in parallel during migration
-* Switch traffic from v2 to v3 after data migration completes
-* *Read operation downtime:* 10-30 seconds (during traffic routing switchover)
-* *Write operation downtime:* 30-45 minutes (during export and import)
+. Use a reverse proxy or load balancer (nginx, HAProxy, etc.) to manage traffic routing
+. Run {registry} {registry-v2} and 3.x in parallel during migration
+. Switch traffic from v2 to v3 after data migration completes
+* Read operation downtime: 10-30 seconds (during traffic routing switchover)
+* Write operation downtime: 30-45 minutes (during export and import)
 
-*Traditional maintenance window:*
+.Traditional maintenance window:
 
-* Stop all client applications
-* Export data from {registry} {registry-v2}
-* Shut down {registry} {registry-v2}
-* Deploy and configure {registry} 3.x
-* Import data and validate
-* Resume client applications
-* *Total downtime:* 1-2 hours (depending on data volume)
+. Stop all client applications
+. Export data from {registry} {registry-v2}
+. Shut down {registry} {registry-v2}
+. Deploy and configure {registry} 3.x
+. Import data and validate
+. Resume client applications
+* Total downtime: 1-2 hours (depending on data volume)
 
-The zero-downtime approach is strongly recommended for production environments.
 
-=== Resource requirements
+During a zero-downtime migration, you temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
 
-During migration, you will temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
-
-*Infrastructure:*
+Infrastructure:
 
 * Separate database instances for v2 and v3 (or different schemas in the same database)
 * For KafkaSQL deployments: same Kafka cluster with different topic names
 * Load balancer capacity for routing traffic
 * Network connectivity between all components
 
-*Storage requirements:*
+Storage requirements:
 
 * v2 database/storage: existing size
 * v3 database/storage: approximately same size as v2 (plan for 110% of v2 size)
 * Export file storage: approximately 10-20% of database size (compressed)
 
-*Timeline:*
+Timeline:
 
 * Keep v2 running for 1-7 days after migration for rollback capability
 * Total parallel operation period: 1-7 days
 * Budget for staging environment testing before production migration
 
-=== Rollback strategy
+[id="c-migration-rollback_{context}"]
+=== Rolling back to {registry-v2}
 
-A key advantage of the parallel deployment approach is the ability to rollback if issues arise:
+A key advantage of the parallel deployment (zero-downtime migration) approach is the ability to rollback if issues arise.
 
-*Immediate rollback (within hours of migration):*
+Options include:
+
+Immediate rollback (within hours of migration)
 
 . Switch load balancer back to {registry} {registry-v2}
 . Investigate issues with 3.x deployment
 . Recovery time: 30-60 seconds
 
-*Delayed rollback (days after migration):*
+Delayed rollback (days after migration)
 
 . Assess data created in 3.x since migration
 . Options:
 ** Accept data loss and rollback to v2
 ** Fix issues and remain on v3 (preferred)
 
-*Preventing rollback scenarios:*
+Preventing rollback scenarios:
 
 * Test migration thoroughly in staging environment
 * Validate data integrity before switching production traffic
@@ -196,7 +201,7 @@ The recommended migration approach uses a load balancer to manage traffic routin
                     └───────┬───────┘
                             │
         ┌───────────────────┼───────────────────┐
-        │ Phase 1-3         │      Phase 4+     │
+        │                   │                   │
         ↓                   ↓                   ↓
 ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
 │  Registry 2.x │   │  Registry 2.x │   │  Registry 3.x │
