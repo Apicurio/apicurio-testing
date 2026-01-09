@@ -108,7 +108,8 @@ wait_for_health_endpoint() {
     
     while [ $(date +%s) -lt $end_time ]; do
         # Use curl to get the JSON response from the health endpoint
-        local response=$(curl -sL --max-time 10 "$url" 2>/dev/null)
+        # Use -k to allow insecure TLS connections (cluster certificates may not be trusted by CI runners)
+        local response=$(curl -skL --max-time 10 "$url" 2>/dev/null)
         local curl_exit_code=$?
         
         # Check if curl succeeded and we got a response
