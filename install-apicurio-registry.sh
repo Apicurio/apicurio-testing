@@ -110,12 +110,12 @@ wait_for_health_endpoint() {
         # Use curl to get the JSON response from the health endpoint
         local response=$(curl -sL --max-time 10 "$url" 2>/dev/null)
         local curl_exit_code=$?
-        
+
         # Check if curl succeeded and we got a response
         if [ $curl_exit_code -eq 0 ] && [ -n "$response" ]; then
             # Parse JSON to check if status is "UP" using jq
             local status=$(echo "$response" | jq -r '.status // empty' 2>/dev/null)
-            
+
             if [ "$status" = "UP" ]; then
                 echo "Health endpoint is ready! Status: UP"
                 return 0
@@ -123,9 +123,28 @@ wait_for_health_endpoint() {
                 echo "Health endpoint responded but status is not UP (status: $status), waiting ${interval}s..."
             fi
         else
-            echo "Health endpoint not reachable yet, waiting ${interval}s..."
+            # Get verbose curl output to determine the type of failure
+            local curl_verbose=$(curl -k -s -v --max-time 10 "$url" 2>&1)
+
+            # Detect specific connection failure types
+            if echo "$curl_verbose" | grep -qi "Connection refused"; then
+                echo "Health endpoint not ready - Connection refused (app not listening on port), waiting ${interval}s..."
+            elif echo "$curl_verbose" | grep -qi "Connection timed out\|Operation timed out"; then
+                echo "Health endpoint not ready - Connection timeout (network/routing issue), waiting ${interval}s..."
+            elif echo "$curl_verbose" | grep -qi "Could not resolve host\|Name or service not known"; then
+                echo "Health endpoint not ready - DNS resolution failed for $url, waiting ${interval}s..."
+            elif echo "$curl_verbose" | grep -qi "SSL certificate problem\|SSL.*error\|certificate verify failed"; then
+                echo "Health endpoint not ready - TLS/SSL certificate issue, waiting ${interval}s..."
+            elif echo "$curl_verbose" | grep -qi "Empty reply from server"; then
+                echo "Health endpoint not ready - Server closing connection immediately, waiting ${interval}s..."
+            elif echo "$curl_verbose" | grep -qi "HTTP.*[45][0-9][0-9]"; then
+                local http_code=$(echo "$curl_verbose" | grep -o "HTTP.*[45][0-9][0-9]" | head -n1)
+                echo "Health endpoint not ready - Server returned error ($http_code), waiting ${interval}s..."
+            else
+                echo "Health endpoint not reachable yet (curl exit code: $curl_exit_code), waiting ${interval}s..."
+            fi
         fi
-        
+
         sleep $interval
     done
     
