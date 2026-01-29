@@ -1,12 +1,20 @@
-
 [id="registry-migration_{context}"]
-= Introduction to migration from {registry} {registry-v2} to 3.x
+= Migrating from {registry} {registry-v2} to 3.x
 
 [role="_abstract"]
-{registry} 3.x includes a redesigned data model, a reworked REST API, and a refreshed SDK ecosystem compared to the previous {registry} {registry-v2} release.
-This section outlines the major changes between {registry} {registry-v2} and version 3.x so that you can plan your upgrade activities.
+This documentation provides comprehensive guidance for migrating from {registry} {registry-v2} to {registry} 3.x.
 
-Because of the breaking changes in 3.x, there is no in-place upgrade. You must stand up a new 3.x deployment, migrate the persisted content, and update your client applications and automation.
+{registry} 3.x includes breaking changes that require a new deployment, data migration, and client application updates. There is no in-place upgrade path from v2 to v3.
+
+
+// con-registry-migration-overview
+[id="registry-migration-overview_{context}"]
+== Overview of changes in {registry} 3.x
+
+[role="_abstract"]
+{registry} 3.x includes a redesigned data model, a reworked REST API, and a refreshed SDK ecosystem compared to {registry} {registry-v2}.
+
+Because of the breaking changes in 3.x, there is no in-place upgrade. You must deploy a new 3.x instance, migrate the persisted content, and update your client applications and automation.
 
 When migrating to version 3.x, take the following areas into account:
 
@@ -14,11 +22,11 @@ When migrating to version 3.x, take the following areas into account:
 Updated data model and governance::
 +
 --
-{registry} 3.x separates artifact metadata from version metadata and introduces first-class support for empty artifacts. These capabilities let you prepare governance metadata, rules, and branch structures before the first version exists. Additional highlights include:
+{registry} 3.x separates artifact metadata from version metadata and introduces first-class support for empty artifacts. These capabilities enable you to prepare governance metadata, rules, and branch structures before the first version exists. Additional highlights include:
 
 * Artifact metadata is now managed independently from version metadata.
 * Groups and artifacts can define custom labels to improve categorization.
-* Users can create and manage custom branches, and the `latest` branch is implemented as a system managed branch.
+* Create and manage custom branches. The system manages the `latest` branch automatically.
 --
 
 Core v3 REST API::
@@ -26,7 +34,7 @@ Core v3 REST API::
 --
 The v3 REST API focuses on consistency and discoverability:
 
-* Group management now covers descriptions, owners, labels, and hierarchical rules.
+* Group management covers descriptions, owners, labels, and hierarchical rules.
 * New search endpoints at `/search/groups` and `/search/versions` expand discovery.
 * Version-focused endpoints streamline content management and require explicit `Content-Type` headers.
 * A `dryRun` query parameter replaces the former `/test` endpoints.
@@ -35,42 +43,67 @@ The v3 REST API focuses on consistency and discoverability:
 
 
 Re-engineered Kafka storage variant::
-The KafkaSQL storage implementation is now optimized for stability and maintainability.
+The KafkaSQL storage implementation is optimized for stability and maintainability.
 The new design reduces startup times for large installations.
+
+Architectural changes in v3::
+The KafkaSQL storage uses a true event journaling pattern that requires a separate Kafka topic with different configuration. The v3 journal format is incompatible with v2.
+
+Separate UI container::
+The user interface is now deployed as a separate container, providing more deployment flexibility and independent scaling of UI and API components.
 
 == Generated SDKs powered by Kiota
 {registry} 3.x ships Kiota-generated SDKs that mirror the REST API structure across languages.
 Updated libraries are available for Java, TypeScript, Python, and Go, providing lightweight, type-safe clients with minimal dependencies and consistent naming.
 
 
+// con-migration-planning
 [id="c-migration-planning_{context}"]
 == Planning the migration
 
 [role="_abstract"]
-Successful migration requires careful planning to minimize downtime and ensure data consistency. This section covers downtime expectations, resource requirements, and reference implementations. Select the scenario that best aligns with your current architecture and customize the specific steps to accommodate your infrastructure constraints.
+Select the scenario that best aligns with your architecture and customize the steps for your infrastructure.
 
-The migration approach you choose determines the amount of downtime your registry will experience:
+The migration approach you choose determines the amount of downtime your registry experiences:
 
-.Zero-downtime migration (recommended):
+[cols="1,2,2", options="header"]
+|===
+| Feature | Minimal downtime migration | Maintenance window migration
 
-. Use a reverse proxy or load balancer (nginx, HAProxy, etc.) to manage traffic routing
-. Run {registry} {registry-v2} and 3.x in parallel during migration
-. Switch traffic from v2 to v3 after data migration completes
-* Read operation downtime: 10-30 seconds (during traffic routing switchover)
-* Write operation downtime: 30-45 minutes (during export and import)
+| *Primary Method*
+| Parallel environments with reverse proxy or load balancer routing
+| Sequential process
 
-.Traditional maintenance window:
+| *Complexity*
+| **High**: Requires configuration for dual-routing and traffic management.
+| **Low**: Straightforward, linear execution steps.
 
-. Stop all client applications
-. Export data from {registry} {registry-v2}
-. Shut down {registry} {registry-v2}
-. Deploy and configure {registry} 3.x
-. Import data and validate
-. Resume client applications
-* Total downtime: 1-2 hours (depending on data volume)
+| *Read Downtime*
+| 10-30 seconds (Switchover latency)
+| 1-2 hours (Full duration of maintenance)
 
+| *Write Downtime*
+| 30-45 minutes (Final sync and import phase)
+| 1-2 hours (Full duration of maintenance)
 
-During a zero-downtime migration, you temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
+| *Infrastructure*
+| Requires Nginx or HAProxy and running dual instances.
+| Single target environment.
+
+| *Best For*
+| High-availability production environments.
+| Development, staging, or systems with flexible SLAs.
+|===
+
+.Minimal downtime migration
+The objective here is to keep the service reachable. While data is being moved, a reverse proxy (like Nginx) manages the cutover.
+
+.Maintenance window migration
+This is the "cleanest" migration from a data integrity standpoint. By stopping all client applications first, you ensure no data is in flight during the move.
+
+NOTE: Regardless of the path chosen, always perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately.
+
+During a minimal downtime migration, you temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
 
 Infrastructure:
 
@@ -94,7 +127,7 @@ Timeline:
 [id="c-migration-rollback_{context}"]
 === Rolling back to {registry-v2}
 
-A key advantage of the parallel deployment (zero-downtime migration) approach is the ability to rollback if issues arise.
+A key advantage of the parallel deployment (minimal downtime migration) approach is the ability to quickly roll back if issues arise.
 
 Options include:
 
@@ -117,42 +150,7 @@ Preventing rollback scenarios:
 * Validate data integrity before switching production traffic
 * Run comprehensive smoke tests after migration
 
-=== Data consistency considerations
-
-To ensure 100% data consistency during migration:
-
-*Enable read-only mode during export:*
-
-{registry} {registry-v2} does not have a built-in read-only mode. Use your load balancer to block write operations (POST, PUT, PATCH, DELETE) while allowing read operations (GET, HEAD, OPTIONS) during the export process.
-
-Example nginx configuration for read-only mode:
-
-[source,nginx]
-----
-server {
-    location / {
-        if ($request_method !~ ^(GET|HEAD|OPTIONS)$) {
-            return 405 "Registry temporarily in read-only mode for migration";
-        }
-        proxy_pass http://registry-v2:8080;
-    }
-}
-----
-
-*Impact during read-only period:*
-
-* Read operations (schema lookups): continue normally
-* Write operations (new schemas, updates): blocked with HTTP 405
-* Kafka producers with auto-register: will fail to register new schemas
-* Duration: 30-45 minutes (export and import period)
-
-*After switching to {registry} 3.x:*
-
-* Write operations automatically resume
-* No configuration changes needed
-* Full read/write functionality restored
-
-=== Prerequisites checklist
+.Prerequisites
 
 Before beginning migration:
 
@@ -169,7 +167,7 @@ Before beginning migration:
 | Administrative access
 | Credentials for export/import API endpoints
 
-| Database/storage
+| Database or storage
 | Separate database instance or schema (or separate Kafka topic) for {registry} 3.x
 
 | Backup
@@ -179,15 +177,16 @@ Before beginning migration:
 | Documented procedure to revert to v2 if needed
 |===
 
-[id="recommended-migration-workflow_{context}"]
-== Recommended migration workflow
+// proc-migration-workflow
+[id="migration-workflow_{context}"]
+== Migration workflow
 
 [role="_abstract"]
-This section provides a complete, phase-based workflow for migrating from {registry} {registry-v2} to 3.x with minimal downtime. Each phase includes specific steps and validation checkpoints to ensure a successful migration.
+Follow this phase-based workflow to migrate from {registry} {registry-v2} to 3.x with minimal downtime. Each phase includes steps and validation checkpoints.
 
 === Overview
 
-The recommended migration approach uses a load balancer to manage traffic routing, enabling near-zero downtime for read operations and a controlled read-only period for write operations during data export.
+The minimal downtime migration approach uses a load balancer to manage traffic routing, enabling minimal downtime for read operations and a controlled read-only period for write operations during data export.
 
 [literal]
 ....
@@ -197,7 +196,7 @@ The recommended migration approach uses a load balancer to manage traffic routin
                             │
                             ↓
                     ┌───────────────┐
-                    │ Load Balancer │  (nginx, HAProxy, etc.)
+                    │ Load Balancer │  (such as nginx or HAProxy)
                     └───────┬───────┘
                             │
         ┌───────────────────┼───────────────────┐
@@ -211,7 +210,7 @@ The recommended migration approach uses a load balancer to manage traffic routin
 ....
 
 === Phase 1: Preparation
-NOTE: We recommend testing as much of the migration as possible in a staging environment before
+NOTE: Test as much of the migration as possible in a staging environment before
 upgrading in production.
 
 ==== Step 1: Deploy load balancer
@@ -261,7 +260,7 @@ server {
 
 Reload the load balancer configuration and verify read-only mode is active.
 
-*Impact:* Read operations (schema lookups) continue normally. Write operations (new schemas, updates) return HTTP 405. Kafka producers with auto-register will fail to register new schemas.
+*Impact:* Read operations (schema lookups) continue normally. Write operations (new schemas, updates) return HTTP 405. Kafka producers with auto-register fail to register new schemas.
 
 ==== Step 4: Capture baseline metrics
 
@@ -281,7 +280,7 @@ The script captures:
 * Global rule configurations
 * Output saved to text file (default: `registry-baseline.txt`)
 
-The script supports OAuth2 authentication and can be run interactively or automated using environment variables.
+The script supports OAuth2 authentication. Run it interactively or automate it using environment variables.
 
 See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed usage and configuration options.
 
@@ -316,7 +315,7 @@ See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed u
 
 ==== Step 6: Deploy {registry} 3.x
 
-Deploy {registry} 3.x using the infrastructure prepared in Step 2.  Make sure the v3 deployment is configured similarly to how the previous v2 deployment was configured.  Note that various configuration parameters have been renamed or otherwise changed.
+Deploy {registry} 3.x using the infrastructure prepared in Step 2. Configure the v3 deployment similarly to the previous v2 deployment. Note that various configuration parameters are renamed or changed.
 
 See xref:migrating-registry-configuration_{context}[Updating registry configuration] for v3 configuration information and examples.
 
@@ -365,7 +364,7 @@ The script performs comprehensive verification:
 * Global rules validation
 * v2 API backward compatibility check (optional)
 
-If validation fails, investigate import logs and re-attempt if necessary. Do not proceed to traffic switch until all checks pass.
+If validation fails, investigate import logs and retry if necessary. Do not proceed to traffic switch until all checks pass.
 
 See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed usage and configuration options.
 
@@ -375,7 +374,7 @@ See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed u
 
 ==== Step 9: Switch load balancer to {registry} 3.x
 
-Update the load balancer configuration to route to {registry} 3.x and enable read/write operations.  An example configuration using nginx might look like this:
+Update the load balancer configuration to route to {registry} 3.x and enable read/write operations. The following example shows an nginx configuration:
 
 [source,nginx]
 ----
@@ -395,7 +394,7 @@ server {
 
 Reload the load balancer.
 
-*Downtime:* This operation causes 10-30 seconds of downtime for all operations during the reload.
+*Downtime:* This operation causes 10-30 seconds of downtime for all operations during reload.
 
 *Checkpoint:* All traffic routed to v3, write operations resumed.
 
@@ -422,7 +421,7 @@ The script confirms:
 
 ==== Step 11: Test v2 API backward compatibility
 
-Verify that v2 clients can access the 3.x registry through the v2 API compatibility layer.  All existing clients should continue operating normally (because Registry v3 still supports the v2 Core REST API used by v2 clients).
+Verify that v2 clients can access the 3.x registry through the v2 API compatibility layer. All existing clients continue to operate normally because Registry v3 supports the v2 Core REST API used by v2 clients.
 
 See xref:migrating-registry-applications_{context}[Migrating registry client applications] for detailed client migration guidance.
 
@@ -471,7 +470,7 @@ Keep {registry-v2} running but not serving traffic for rollback capability:
 
 * Monitor {registry} 3.x for 24-48 hours minimum
 * Watch for error rates, performance issues, or unexpected behavior
-* Be prepared for immediate rollback if critical issues arise (switch load balancer back to v2)
+* Prepare for immediate rollback if critical issues arise (switch load balancer back to v2)
 * Begin planning gradual client application migration to v3 SDKs
 
 See xref:migrating-registry-applications_{context}[Migrating registry client applications] for guidance on updating client applications.
@@ -519,29 +518,30 @@ If you encounter issues during migration:
 . Recovery time: 30-60 seconds
 . v2 data unchanged (export was read-only)
 
+// proc-migrating-registry-data
 [id="migrating-registry-data_{context}"]
 == Migrating {registry} data
 
 [role="_abstract"]
-Use the export and import APIs to migrate persisted content from {registry} {registry-v2} into a new {registry} 3.x deployment. The APIs preserve artifact identifiers, metadata, and references so that downstream Kafka payloads remain compatible.
+Use the export and import APIs to migrate persisted content from {registry} {registry-v2} to a new {registry} 3.x deployment. The APIs preserve artifact identifiers, metadata, and references, ensuring downstream Kafka payloads remain compatible.
 
 IMPORTANT: The export/import procedure is *required* for migration. {registry} 3.x cannot directly read {registry-v2} storage:
 
 * *SQL storage:* The v3 database schema is incompatible with v2
 * *KafkaSQL storage:* The v3 Kafka journal topic format is incompatible with v2
 
-You must export data from v2 and import it into v3 using the export/import APIs.
+Export data from v2 and import it into v3 using the export/import APIs.
 
 {registry} 3.x accepts the export archive generated from a {registry-v2} instance. Capture the archive from your existing deployment, provision the 3.x environment, and import the archive into the new cluster.
 
 .Prerequisites
 * Running {registry} instances of the {registry-v2} server you are exporting from and the 3.x server you are importing into.
 * Administrative credentials that allow access to the `/apis/registry/v2/admin/export` and `/apis/registry/v3/admin/import` endpoints.
-* If using OAuth2 authentication, valid client credentials with admin role (e.g., `sr-admin`).
+* If using OAuth2 authentication, valid client credentials with admin role (for example, `sr-admin`).
 
 .Procedure
 
-The migration scripts automate the export, import, and validation process with support for OAuth2 authentication and detailed error handling.
+The migration scripts automate the export, import, and validation process. They support OAuth2 authentication and provide detailed error handling.
 
 . Export all data from {registry} {registry-v2} using the export script:
 +
@@ -550,13 +550,13 @@ The migration scripts automate the export, import, and validation process with s
 ./apicurio-export-registry-data.sh
 ----
 +
-The script will:
+The script:
 +
-* Connect to your {registry-v2} deployment
-* Export all artifacts, versions, metadata, and rules
-* Save the data to a ZIP file (default: `registry-export.zip`)
-* Validate the export file format and size
-* Report export duration and file details
+* Connects to your {registry-v2} deployment
+* Exports all artifacts, versions, metadata, and rules
+* Saves the data to a ZIP file (default: `registry-export.zip`)
+* Validates the export file format and size
+* Reports export duration and file details
 +
 For detailed configuration options and OAuth2 authentication setup, see xref:migration-scripts_{context}[Migration Scripts Reference].
 
@@ -567,13 +567,13 @@ For detailed configuration options and OAuth2 authentication setup, see xref:mig
 ./apicurio-import-registry-data.sh
 ----
 +
-The script will:
+The script:
 +
-* Validate the import ZIP file exists and is valid
-* Check {registry} 3.x accessibility and version
-* Import all data from the export file
-* Verify artifact counts before and after import
-* Report global rules configuration
+* Validates the import ZIP file exists and is valid
+* Checks {registry} 3.x accessibility and version
+* Imports all data from the export file
+* Verifies artifact counts before and after import
+* Reports global rules configuration
 +
 For detailed configuration options, see xref:migration-scripts_{context}[Migration Scripts Reference].
 
@@ -596,20 +596,21 @@ For detailed configuration options, see xref:migration-scripts_{context}[Migrati
 
 === Manual procedure (without scripts)
 
-If you prefer, you can also use the Registry UI to export from v2 and import into v3.
+You can also use the Registry UI to export from v2 and import into v3.
 
 [role="_additional-resources"]
 .Additional resources
 * {LinkServiceRegistryUser}[{NameServiceRegistryUser}]
 
 
+// proc-migrating-registry-applications
 [id="migrating-registry-applications_{context}"]
 == Migrating {registry} client applications
 
 [role="_abstract"]
-Review every application that integrates with {registry} {registry-v2} to ensure compatibility with the v3 REST API, SDKs, and client libraries. Update dependency coordinates, reconfigure endpoints, and adjust automation to account for the new data model.
+Review every application that integrates with {registry} {registry-v2} to verify compatibility with the v3 REST API, SDKs, and client libraries. Update dependency coordinates, reconfigure endpoints, and adjust automation to account for the new data model.
 
-IMPORTANT: {registry} 3.x maintains backward compatibility with v2 client libraries and SerDes. You can continue using v2 clients with a v3 registry during your migration period, allowing gradual client updates.
+IMPORTANT: {registry} 3.x maintains backward compatibility with v2 client libraries and SerDes. Continue using v2 clients with a v3 registry during your migration period, allowing gradual client updates.
 
 .Prerequisites
 * Existing {registry} {registry-v2} applications that rely on the v2 REST API or legacy client libraries.
@@ -622,24 +623,24 @@ IMPORTANT: {registry} 3.x maintains backward compatibility with v2 client librar
 
 * *v2 REST API* remains available at `/apis/registry/v2`
 * *v2 SerDes libraries* continue to work with v3 registry
-* *v2 client Kafka messages* can be consumed by v3 SerDes (with proper configuration)
-* *No immediate client updates required* for migration
+* *v3 SerDes* consumes v2 client Kafka messages (with proper configuration)
+* *No immediate client updates required* during migration
 
-This allows you to:
+This approach lets you:
 
-. Migrate the registry to v3 first
-. Test with existing v2 clients
-. Gradually update clients to v3 libraries over time
+. Migrate the registry to v3 first.
+. Test with existing v2 clients.
+. Gradually update clients to v3 libraries over time.
 
 === Migration strategies
 
-==== Strategy 1: Gradual migration (recommended)
+==== Strategy 1: Gradual migration
 
 Migrate registry first, then update clients incrementally:
 
 . Deploy {registry} 3.x
 . Verify v2 clients continue working
-. Update high-priority clients to v3 SerDes/SDKs
+. Update high-priority clients to v3 SerDes or SDKs
 . Gradually migrate remaining clients
 . Deprecate v2 API access once all clients updated
 
@@ -667,7 +668,7 @@ Update all clients and registry simultaneously:
 
 === Kafka SerDes migration
 
-Kafka SerDes applications are the most common {registry} integration and require careful migration planning.
+Kafka SerDes applications are the most common {registry} integration and require careful migration planning. Follow these steps to migrate your SerDes configuration.
 
 ==== Maven dependency changes
 
@@ -762,9 +763,9 @@ props.put(SerdeConfig.AUTH_CLIENT_SECRET, "secret");
 | `USE_ID` with `IdOption` (default "contentId")
 |===
 
-==== TLS/HTTPS configuration
+==== TLS and HTTPS configuration
 
-TLS configuration differs between v2 and v3 SerDes clients:
+TLS configuration differs between v2 and v3 SerDes clients. Update your configuration as follows:
 
 *Registry 2.x (system properties):*
 
@@ -796,11 +797,11 @@ IMPORTANT: v3 SerDes requires *both* SerdeConfig TLS properties (for Registry SD
 
 ==== Message format compatibility
 
-With proper configuration, {registry} 3.x SerDes can read messages serialized by v2 SerDes:
+With proper configuration, {registry} 3.x SerDes reads messages serialized by v2 SerDes:
 
-* *v3 consumers* can read messages produced by v2 producers
-* *v2 consumers* can read messages produced by v3 producers
-* *Mixed environment* (v2 and v3 clients) is fully supported
+* *v3 consumers* read messages produced by v2 producers
+* *v2 consumers* read messages produced by v3 producers
+* *Mixed environment* (v2 and v3 clients) works correctly
 
 This ensures zero data loss during migration.
 
@@ -835,9 +836,9 @@ Update to v3 Kiota-generated SDKs:
 ----
 
 
-==== TLS/HTTPS configuration
+==== TLS and HTTPS configuration
 
-TLS configuration differs between v2 and v3 clients:
+TLS configuration differs between v2 and v3 clients. Update your configuration as follows:
 
 *Registry 2.x (system properties):*
 
@@ -852,7 +853,7 @@ System.setProperty("javax.net.ssl.trustStorePassword", "password");
 
 [source,java]
 ----
-// v3 clients use RegistryClientOptions (recommended)
+// v3 clients use RegistryClientOptions
 RegistryClientOptions options = RegistryClientOptions.builder()
     .trustStore(new File("/path/to/truststore.jks"))
     .trustStorePassword("password")
@@ -942,11 +943,12 @@ RegistryClient client = RegistryClientFactory.create(options);
 * Kiota SDK Documentation
 
 
+// ref-migrating-registry-configuration
 [id="migrating-registry-configuration_{context}"]
 == Updating {registry} configuration
 
 [role="_abstract"]
-Configuration keys in {registry} 3.x adopt a unified `apicurio.` namespace and reorganize authentication, eventing, UI, and storage settings. Review and update your deployment descriptors so that server-side properties match the new naming scheme.
+Configuration keys in {registry} 3.x adopt a unified `apicurio.` namespace and reorganize authentication, eventing, UI, and storage settings. Review and update your deployment descriptors to match the new naming scheme.
 
 IMPORTANT: Configuration property changes are extensive in 3.x. Review all sections carefully and test in a staging environment before migrating production deployments.
 
@@ -1054,7 +1056,7 @@ IMPORTANT: Use a different topic name for v3 (`kafkasql-journal-v3`) than v2 (`k
 
 === KafkaSQL storage deep dive
 
-The KafkaSQL storage implementation has been completely re-engineered in {registry} 3.x with significant architectural improvements.
+{registry} 3.x completely re-engineers the KafkaSQL storage implementation with significant architectural improvements.
 
 ==== Architectural changes in v3
 
@@ -1081,7 +1083,7 @@ retention.ms=-1
 retention.bytes=-1
 ----
 
-IMPORTANT: The journal topic must have `cleanup.policy=delete` with infinite retention (`retention.ms=-1`). Do not use log compaction. All journal events must be preserved for proper registry operation.
+IMPORTANT: The journal topic must have `cleanup.policy=delete` with infinite retention (`retention.ms=-1`). Do not use log compaction. Preserve all journal events for proper registry operation.
 
 *Creating the topic:*
 
@@ -1117,11 +1119,11 @@ kafka-topics.sh --bootstrap-server kafka:9092 --describe \
 
 *What is snapshotting?*
 
-Snapshotting creates periodic database snapshots of the registry state, which provides:
+Snapshotting creates periodic database snapshots of the registry state, providing:
 
-* **Faster startup times**: Registry can load from snapshot instead of replaying entire journal
-* **Backup capability**: Snapshots can be used for disaster recovery
-* **Journal compaction**: Older journal events can be safely removed after snapshot
+* **Faster startup times**: Registry loads from the snapshot instead of replaying the entire journal
+* **Backup capability**: Use snapshots for disaster recovery
+* **Journal compaction**: Safely remove older journal events after creating a snapshot
 
 *When to use snapshotting:*
 
@@ -1133,7 +1135,7 @@ NOTE: Snapshotting is an advanced feature. Most deployments do not need snapshot
 
 === Authentication and authorization
 
-Authentication configuration changes significantly in 3.x, particularly for OAuth2/OIDC integration.
+Authentication configuration changes significantly in 3.x, particularly for OAuth2/OIDC integration. Update your configuration properties as shown in the following table.
 
 [cols="1,1",options="header"]
 |===
@@ -1238,7 +1240,7 @@ QUARKUS_HTTP_CORS_ORIGINS=*
 
 === TLS/HTTPS configuration
 
-TLS configuration remains unchanged between v2 and v3 for server-side settings:
+TLS configuration remains unchanged between v2 and v3 for server-side settings. Use the same properties as shown in the following table.
 
 [cols="1,1",options="header"]
 |===
@@ -1269,7 +1271,7 @@ QUARKUS_HTTP_SSL_CERTIFICATE_KEY_STORE_PASSWORD=password123
 QUARKUS_HTTP_INSECURE_REQUESTS=disabled
 ----
 
-NOTE: TLS configuration is identical for v2 and v3. You can reuse the same certificates.
+NOTE: TLS configuration is identical for v2 and v3. Reuse the same certificates.
 
 === Migration checklist
 
@@ -1413,17 +1415,18 @@ echo $ACCESS_TOKEN | cut -d. -f2 | base64 -d | jq .realm_access.roles
 * {LinkServiceRegistryUser}[{NameServiceRegistryUser}]
 
 
+// con-migration-user-interface
 [id="user-interface_{context}"]
 == User interface
 
 [role="_abstract"]
-{registry} 3.x introduces a significant architectural change to the user interface. The UI is now deployed as a separate container, providing more deployment flexibility but requiring additional configuration considerations during migration.
+{registry} 3.x introduces a significant architectural change to the user interface. You deploy the UI as a separate container, providing more deployment flexibility but requiring additional configuration considerations during migration.
 
 === Architectural changes
 
 ==== Separate UI container
 
-In {registry} {registry-v2}, the UI was built into the main `apicurio-registry` container as a single monolithic application. {registry} 3.x separates the UI into its own container:
+In {registry} {registry-v2}, the UI is built into the main `apicurio-registry` container as a single monolithic application. {registry} 3.x separates the UI into its own container:
 
 *Registry 2.x architecture:*
 
@@ -1456,9 +1459,9 @@ In {registry} {registry-v2}, the UI was built into the main `apicurio-registry` 
 
 === Deployment options
 
-You have flexibility in how you deploy the UI container in relation to the API container.
+You have flexibility in how you deploy the UI container in relation to the API container. Choose one of the following options.
 
-==== Option 1: Separate subdomains (recommended)
+==== Option 1: Separate subdomains
 
 Deploy UI and API to separate subdomains:
 
@@ -1527,7 +1530,7 @@ services:
 
 ==== Application container configuration (primary)
 
-Most UI configuration is done through the *application (API) container*, not the UI container. The application serves UI configuration to the frontend.
+Configure most UI settings through the *application (API) container*, not the UI container. The application serves UI configuration to the frontend.
 
 *Available UI properties (configured on application container):*
 
@@ -1596,7 +1599,7 @@ apicurio.ui.features.read-only.enabled=false
 
 ==== UI container configuration (overrides)
 
-The UI container has its own environment variables that can *override* the application configuration, but these are typically not needed.
+The UI container has its own environment variables that *override* the application configuration, but you typically do not need these.
 
 *Common UI container environment variables:*
 
@@ -1606,7 +1609,7 @@ The UI container has its own environment variables that can *override* the appli
 | Description
 
 | `REGISTRY_API_URL`
-| *Required*: URL to the backend API (e.g., `http://registry-api:8080/apis/registry/v3`)
+| *Required*: URL to the backend API (for example, `http://registry-api:8080/apis/registry/v3`)
 
 | `REGISTRY_CONTEXT_PATH`
 | Override for UI context path
@@ -1630,15 +1633,15 @@ The UI container has its own environment variables that can *override* the appli
 | Override for read-only mode (`true` or `false`)
 |===
 
-IMPORTANT: The only *required* UI container property is `REGISTRY_API_URL`. All other UI configuration should be done on the application container using `apicurio.ui.*` properties.
+IMPORTANT: The only *required* UI container property is `REGISTRY_API_URL`. Configure all other UI settings on the application container using `apicurio.ui.*` properties.
 
 === Designer functionality (formerly Apicurio Studio)
 
-{registry} 3.1.0 introduces integrated Designer functionality, which replaces the standalone Apicurio Studio project.
+{registry} 3.1.0 introduces integrated Designer functionality, replacing the standalone Apicurio Studio project.
 
 ==== What is Designer?
 
-Designer provides visual editing capabilities for OpenAPI and AsyncAPI specifications directly within the {registry} UI. This functionality was previously available as a separate project (Apicurio Studio) but is now fully integrated into {registry}.
+Designer provides visual editing capabilities for OpenAPI and AsyncAPI specifications directly within the {registry} UI. This functionality previously existed as a separate project (Apicurio Studio) but is now fully integrated into {registry}.
 
 *Key features:*
 
@@ -1658,7 +1661,7 @@ Designer functionality requires enabling content mutability for artifact version
 apicurio.rest.mutability.artifact-version-content.enabled=true
 ----
 
-When enabled, users can:
+When enabled, you can:
 
 * Create draft versions of artifacts
 * Edit draft content using the visual editor
@@ -1671,15 +1674,16 @@ When enabled, users can:
 * Apicurio Studio Deprecation Announcement: https://www.apicur.io/blog/2025/10/23/studio-fully-deprecated
 
 
+// ref-migration-scripts
 [id="migration-scripts_{context}"]
 == Migration scripts reference
 
 [role="_abstract"]
-This section provides reference documentation for the migration scripts that automate key steps in the migration workflow. All scripts support both interactive mode and automated mode using environment variables, and include OAuth2 authentication support.
+The migration scripts automate key steps in the workflow. All scripts support interactive and automated modes using environment variables, with OAuth2 authentication support.
 
 === Overview
 
-The migration scripts are designed to be production-ready tools that handle the most critical and error-prone aspects of migration:
+The migration scripts are production-ready tools that handle the most critical and error-prone aspects of migration:
 
 * **apicurio-capture-metrics.sh** - Captures metrics before/after migration (for comparison)
 * **apicurio-export-registry-data.sh** - Exports all data from {registry-v2}
@@ -1687,7 +1691,7 @@ The migration scripts are designed to be production-ready tools that handle the 
 * **apicurio-verify-registry-version.sh** - Verifies registry version and health
 * **apicurio-verify-v3-api-features.sh** - Tests v3-specific API features
 
-All scripts can be found in the Apicurio Registry GitHub repository under `migration-testing/docs/scripts/`.
+Find all scripts in the Apicurio Registry GitHub repository under `migration-testing/docs/scripts/`.
 
 === Common features
 
@@ -1756,7 +1760,7 @@ export OUTPUT_FILE="registry-baseline.txt"
 | Description
 
 | `REGISTRY_URL`
-| Registry base URL (e.g., `https://registry.example.com`)
+| Registry base URL (for example, `https://registry.example.com`)
 
 | `REGISTRY_API_VERSION`
 | API version to use (default: `v2`)
@@ -1825,7 +1829,7 @@ export EXPORT_FILE="registry-export.zip"
 | Description
 
 | `REGISTRY_URL`
-| Registry base URL (e.g., `https://registry-v2.example.com`)
+| Registry base URL (for example, `https://registry-v2.example.com`)
 
 | `REGISTRY_API_VERSION`
 | API version to use (default: `v2`)
@@ -1855,8 +1859,8 @@ ZIP file containing complete registry export (default: `registry-export.zip`).
 
 *Important notes:*
 
-* Run this script while the registry is in read-only mode to ensure data consistency
-* The export file can be large depending on registry size
+* Run this script while the registry is in read-only mode to maintain data consistency
+* The export file size varies depending on registry size
 
 === Script: apicurio-import-registry-data.sh
 
@@ -1900,7 +1904,7 @@ export IMPORT_FILE="registry-export.zip"
 | Description
 
 | `REGISTRY_URL`
-| Registry base URL (e.g., `https://registry-v3.example.com`)
+| Registry base URL (for example, `https://registry-v3.example.com`)
 
 | `REGISTRY_API_VERSION`
 | API version to use (default: `v3`)
@@ -1928,7 +1932,7 @@ export IMPORT_FILE="registry-export.zip"
 
 * Import adds to existing data (does not replace)
 * Script warns if registry already contains artifacts
-* Recommended to import into empty v3 registry
+* Import into an empty v3 registry for best results
 
 === Script: apicurio-verify-registry-version.sh
 
@@ -1969,7 +1973,7 @@ export AUTH_CLIENT_SECRET="your-secret"
 | Description
 
 | `REGISTRY_URL`
-| Registry base URL (e.g., `https://registry.example.com`)
+| Registry base URL (for example, `https://registry.example.com`)
 
 | `REGISTRY_VERSION`
 | Registry version to test (default: `v3`)
@@ -2033,7 +2037,7 @@ export AUTH_CLIENT_SECRET="your-secret"
 | Description
 
 | `REGISTRY_URL`
-| Registry base URL (e.g., `https://registry-v3.example.com`)
+| Registry base URL (for example, `https://registry-v3.example.com`)
 
 | `AUTH_ENABLED`
 | Set to `true` to enable OAuth2 authentication
@@ -2058,11 +2062,11 @@ export AUTH_CLIENT_SECRET="your-secret"
 
 === Authentication
 
-All scripts support OAuth2 authentication with client credentials grant type.
+All scripts support OAuth2 authentication using client credentials grant type.
 
 *Interactive mode (prompts):*
 
-If environment variables are not set, scripts will prompt for:
+If environment variables are not set, scripts prompt for:
 
 * Auth token endpoint URL
 * Client ID
@@ -2089,13 +2093,13 @@ If your {registry} does not use authentication:
 export AUTH_ENABLED="false"
 ----
 
-Or simply press Enter when prompted for authentication.
+Alternatively, press Enter when prompted for authentication.
 
 === TLS/HTTPS support
 
 *Production (trusted certificates):*
 
-Scripts work with trusted certificates by default:
+Scripts work with trusted certificates by default. Use the following setting:
 
 [source,bash]
 ----
@@ -2119,46 +2123,46 @@ WARNING: Only use `SKIP_TLS_VERIFY=true` in non-production environments.
 
 Solution:
 
-* Verify `AUTH_TOKEN_URL` is correct
-* Check client credentials are valid
-* Ensure client has appropriate roles (e.g., `sr-admin`)
-* Test manually with curl
+* Verify `AUTH_TOKEN_URL` is correct.
+* Check that client credentials are valid.
+* Confirm the client has appropriate roles (for example, `sr-admin`).
+* Test manually with curl.
 
 *Issue: "Registry is not accessible"*
 
 Solution:
 
-* Verify `REGISTRY_URL` is correct
-* Check network connectivity
-* Ensure registry is running and healthy
-* Verify firewall/security group rules
+* Verify `REGISTRY_URL` is correct.
+* Check network connectivity.
+* Confirm the registry is running and healthy.
+* Verify firewall and security group rules.
 
 *Issue: "Export file is too small"*
 
 Solution:
 
-* Check authentication is working
-* Verify admin permissions
-* Review registry logs for errors
-* Ensure export endpoint is accessible
+* Check that authentication is working.
+* Verify admin permissions.
+* Review registry logs for errors.
+* Confirm the export endpoint is accessible.
 
 *Issue: "Import failed"*
 
 Solution:
 
-* Verify export file is valid ZIP: `unzip -t registry-export.zip`
-* Check registry v3 has sufficient storage
-* Review registry v3 logs for errors
-* Ensure registry v3 is healthy before import
+* Verify the export file is a valid ZIP: `unzip -t registry-export.zip`
+* Check that registry v3 has sufficient storage.
+* Review registry v3 logs for errors.
+* Confirm registry v3 is healthy before import.
 
 *Issue: "Artifact count mismatch"*
 
 Solution:
 
-* Wait a few seconds after import (processing delay)
-* Check import logs for errors
-* Verify export file integrity
-* Consider re-exporting and re-importing
+* Wait a few seconds after import (processing delay).
+* Check import logs for errors.
+* Verify export file integrity.
+* Consider re-exporting and re-importing.
 
 === Dependencies
 
