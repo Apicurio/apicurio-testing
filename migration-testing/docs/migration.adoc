@@ -1,6 +1,7 @@
 
 [id="registry-migration_{context}"]
 = Introduction to migration from {registry} {registry-v2} to 3.x
+:toc:
 
 [role="_abstract"]
 {registry} 3.x includes a redesigned data model, a reworked REST API, and a refreshed SDK ecosystem compared to the previous {registry} {registry-v2} release.
@@ -49,25 +50,53 @@ Updated libraries are available for Java, TypeScript, Python, and Go, providing 
 [role="_abstract"]
 Successful migration requires careful planning to minimize downtime and ensure data consistency. This section covers downtime expectations, resource requirements, and reference implementations. Select the scenario that best aligns with your current architecture and customize the specific steps to accommodate your infrastructure constraints.
 
-The migration approach you choose determines the amount of downtime your registry will experience:
 
-.Zero-downtime migration (recommended):
+The following table compares the two documented approaches for migrating from {registry-v2} to 3.x.
 
-. Use a reverse proxy or load balancer (nginx, HAProxy, etc.) to manage traffic routing
-. Run {registry} {registry-v2} and 3.x in parallel during migration
-. Switch traffic from v2 to v3 after data migration completes
-* Read operation downtime: 10-30 seconds (during traffic routing switchover)
-* Write operation downtime: 30-45 minutes (during export and import)
+[cols="1,2,2", options="header"]
+|===
+| Feature | Zero-Downtime Migration | Traditional Maintenance Window
 
-.Traditional maintenance window:
+| *Primary Method*
+| Parallel environments with Reverse Proxy/LB routing
+| Sequential "Stop-Export-Import-Start" process
 
-. Stop all client applications
-. Export data from {registry} {registry-v2}
-. Shut down {registry} {registry-v2}
-. Deploy and configure {registry} 3.x
-. Import data and validate
-. Resume client applications
-* Total downtime: 1-2 hours (depending on data volume)
+| *Complexity*
+| **High**: Requires infra for dual-routing and traffic management.
+| **Low**: Straightforward, linear execution steps.
+
+| *Read Downtime*
+| 10-30 seconds (Switchover latency)
+| 1-2 hours (Full duration of maintenance)
+
+| *Write Downtime*
+| 30-45 minutes (Final sync and import phase)
+| 1-2 hours (Full duration of maintenance)
+
+| *Infrastructure*
+| Requires Nginx/HAProxy + running dual instances.
+| Single target environment.
+
+| *Risk Profile*
+| Lower user impact; higher configuration complexity.
+| Higher user impact; lower technical complexity.
+
+| *Best For*
+| High-availability production environments.
+| Dev/Staging or systems with flexible SLAs.
+|===
+
+
+.Zero-Downtime Approach
+The objective here is to keep the service reachable. While data is being moved, a **Reverse Proxy** (like Nginx) manages the cutover. 
+
+
+
+.Traditional Maintenance Window
+This is the "cleanest" migration from a data integrity standpoint. By stopping all client applications first, you ensure no data is in flight during the move.
+
+NOTE:: Regardless of the path chosen, always perform a "dry run" migration in a staging environment to timing the data export/import phases accurately.
+
 
 
 During a zero-downtime migration, you temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
