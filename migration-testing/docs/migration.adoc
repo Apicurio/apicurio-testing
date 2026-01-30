@@ -2,7 +2,7 @@
 = Migrating from {registry} {registry-v2} to 3.x
 
 [role="_abstract"]
-This documentation provides comprehensive guidance for migrating from {registry} {registry-v2} to {registry} 3.x.
+This documentation provides guidance for migrating from {registry} {registry-v2} to {registry} 3.x.
 
 {registry} 3.x includes breaking changes that require a new deployment, data migration, and client application updates. There is no in-place upgrade path from v2 to v3.
 
@@ -52,7 +52,7 @@ The KafkaSQL storage uses a true event journaling pattern that requires a separa
 Separate UI container::
 The user interface is now deployed as a separate container, providing more deployment flexibility and independent scaling of UI and API components.
 
-== Generated SDKs powered by Kiota
+Generated SDKs powered by Kiota::
 {registry} 3.x ships Kiota-generated SDKs that mirror the REST API structure across languages.
 Updated libraries are available for Java, TypeScript, Python, and Go, providing lightweight, type-safe clients with minimal dependencies and consistent naming.
 
@@ -63,8 +63,6 @@ Updated libraries are available for Java, TypeScript, Python, and Go, providing 
 
 [role="_abstract"]
 Select the scenario that best aligns with your architecture and customize the steps for your infrastructure.
-
-The migration approach you choose determines the amount of downtime your registry experiences:
 
 [cols="1,2,2", options="header"]
 |===
@@ -129,26 +127,38 @@ Timeline:
 
 A key advantage of the parallel deployment (minimal downtime migration) approach is the ability to quickly roll back if issues arise.
 
-Options include:
+[cols="1,2,2", options="header"]
+|===
+| Scenario
+| Description
+| Considerations
 
-Immediate rollback (within hours of migration)
+| Immediate rollback
+(within hours of migration)
+a|
+* Switch load balancer traffic back to {registry-v2}.
+* Investigate issues with the 3.x deployment.
+a|
+* Recovery time: 30–60 seconds.
+* Minimal operational impact.
 
-. Switch load balancer back to {registry} {registry-v2}
-. Investigate issues with 3.x deployment
-. Recovery time: 30-60 seconds
+| Delayed rollback
+(days after migration)
+a|
+* Assess data created in 3.x since migration.
+* Decide on rollback approach.
+a|
+* Options include:
+** Accepting data loss and rolling back to v2.
+** Fixing issues and remaining on v3 (preferred).
 
-Delayed rollback (days after migration)
-
-. Assess data created in 3.x since migration
-. Options:
-** Accept data loss and rollback to v2
-** Fix issues and remain on v3 (preferred)
-
-Preventing rollback scenarios:
-
-* Test migration thoroughly in staging environment
-* Validate data integrity before switching production traffic
-* Run comprehensive smoke tests after migration
+| Preventing rollback scenarios
+a|
+* Test the migration thoroughly in a staging environment.
+* Validate data integrity before switching production traffic.
+* Run comprehensive smoke tests after migration.
+| Reduces the likelihood of rollback being required.
+|===
 
 .Prerequisites
 
@@ -517,6 +527,19 @@ If you encounter issues during migration:
 . Investigate v3 issues
 . Recovery time: 30-60 seconds
 . v2 data unchanged (export was read-only)
+
+=== Maintenance window workflow
+
+For environments where downtime is acceptable, follow this simpler sequential process:
+
+. Stop all client applications that connect to {registry} {registry-v2}.
+. Export data from {registry} {registry-v2}. See xref:migrating-registry-data_{context}[Migrating registry data].
+. Shut down {registry} {registry-v2}.
+. Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
+. Import data into {registry} 3.x. See xref:migrating-registry-data_{context}[Migrating registry data].
+. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
+. Update client application configurations to point to {registry} 3.x.
+. Start client applications.
 
 // proc-migrating-registry-data
 [id="migrating-registry-data_{context}"]
