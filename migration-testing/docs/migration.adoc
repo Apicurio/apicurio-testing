@@ -9,7 +9,7 @@ This documentation provides guidance for migrating from {registry} {registry-v2}
 
 // con-registry-migration-overview
 [id="registry-migration-overview_{context}"]
-== Overview of changes in {registry} 3.x
+== Understanding changes in {registry} 3.x
 
 [role="_abstract"]
 {registry} 3.x includes a redesigned data model, a reworked REST API, and a refreshed SDK ecosystem compared to {registry} {registry-v2}.
@@ -161,7 +161,7 @@ Before beginning migration:
 [role="_abstract"]
 Follow this phase-based workflow to migrate from {registry} {registry-v2} to 3.x with minimal downtime. Each phase includes steps and validation checkpoints.
 
-=== Overview
+=== Understanding the workflow
 
 The minimal downtime migration approach uses a load balancer to manage traffic routing, enabling minimal downtime for read operations and a controlled read-only period for write operations during data export.
 
@@ -243,52 +243,19 @@ Reload the load balancer configuration and verify read-only mode is active.
 
 Record the current state of your {registry-v2} deployment for comparison after migration.
 
-Use the provided script to capture metrics pre-migration:
+For the metrics capture procedure, see xref:migration-scripts_{context}[Using migration scripts].
 
-[source,bash]
-----
-./apicurio-capture-metrics.sh
-----
-
-The script captures:
-
-* Total artifact count
-* Sample of up to 5 artifacts with full metadata
-* Global rule configurations
-* Output saved to text file (default: `registry-baseline.txt`)
-
-The script supports OAuth2 authentication. Run it interactively or automate it using environment variables.
-
-See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed usage and configuration options.
-
-*Checkpoint:* Read-only mode active, write operations blocked.  Baseline documented, ready for data migration.
+*Checkpoint:* Read-only mode active, write operations blocked. Baseline documented, ready for data migration.
 
 === Phase 3: Data migration
 
-For detailed information about the export and import process, see xref:migrating-registry-data_{context}[Migrating {registry} data].
-
 ==== Step 5: Export data from {registry-v2}
 
-Export data while the registry is in read-only mode. This produces a ZIP file containing all registry data.
+Export all artifacts, versions, metadata, and rules from {registry-v2} while the registry is in read-only mode.
 
-Use the provided script to export data:
-
-[source,bash]
-----
-./apicurio-export-registry-data.sh
-----
-
-The script:
-
-* Exports all artifacts, versions, metadata, and rules from {registry-v2}
-* Validates the exported ZIP file
-* Reports file size and duration
-* Supports OAuth2 authentication
-* Default output: `registry-export.zip`
+For the export procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
 
 IMPORTANT: Access the registry directly (not through the load balancer) to bypass read-only restrictions on admin endpoints if needed.
-
-See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed usage and configuration options.
 
 *Checkpoint:* Export complete, data snapshot captured.
 
@@ -302,50 +269,21 @@ See xref:migrating-registry-configuration_{context}[Updating registry configurat
 
 ==== Step 7: Import data into {registry} 3.x
 
-Import the ZIP archive into the 3.x deployment:
+Import the exported ZIP archive into the 3.x deployment.
 
-[source,bash]
-----
-./apicurio-import-registry-data.sh
-----
+For the import procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
 
-The script:
-
-* Validates the import ZIP file
-* Checks {registry} 3.x accessibility and version
-* Imports all data from the export file
-* Verifies artifact count after import
-* Reports global rules configuration
-* Supports OAuth2 authentication
-* Default input: `registry-export.zip`
-
-The import adds to existing data (does not replace). The script warns if the registry already contains artifacts.
-
-See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed usage and configuration options.
+NOTE: The import adds to existing data (does not replace). Import into an empty v3 registry for best results.
 
 *Checkpoint:* Import complete, ready for validation.
 
 ==== Step 8: Validate import
 
-Verify the {registry} 3.x deployment and confirm data migration was successful:
+Verify the {registry} 3.x deployment and confirm data migration was successful.
 
-[source,bash]
-----
-./apicurio-verify-registry-version.sh
-----
-
-The script performs comprehensive verification:
-
-* Health endpoint check
-* System information retrieval
-* Version verification (confirms 3.x)
-* Artifact count comparison
-* Global rules validation
-* v2 API backward compatibility check (optional)
+For the validation procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
 
 If validation fails, investigate import logs and retry if necessary. Do not proceed to traffic switch until all checks pass.
-
-See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed usage and configuration options.
 
 *Checkpoint:* v3 has all data, data metrics match v2, ready for traffic switch.
 
@@ -379,20 +317,9 @@ Reload the load balancer.
 
 ==== Step 10: Verify traffic to the v3 deployment
 
-Confirm traffic is flowing to {registry} 3.x through the load balancer:
+Confirm traffic is flowing to {registry} 3.x through the load balancer. Verify the registry is accessible, version is 3.x, health checks pass, and write operations are enabled.
 
-[source,bash]
-----
-./apicurio-verify-registry-version.sh
-----
-
-The script confirms:
-
-* {registry} is accessible through the load balancer
-* Version is 3.x
-* Health checks pass
-* Artifact counts are correct
-* Write operations are enabled (no longer read-only)
+For the verification procedure, see xref:migration-scripts_{context}[Using migration scripts].
 
 *Checkpoint:* Confirmed v3 is accessible and write operations working, no errors in logs.
 
@@ -400,32 +327,17 @@ The script confirms:
 
 ==== Step 11: Test v2 API backward compatibility
 
-Verify that v2 clients can access the 3.x registry through the v2 API compatibility layer. All existing clients continue to operate normally because Registry v3 supports the v2 Core REST API used by v2 clients.
+Verify that existing v2 clients can access the 3.x registry through the v2 API compatibility layer.
 
-See xref:migrating-registry-applications_{context}[Migrating registry client applications] for detailed client migration guidance.
+For backward compatibility details and client migration guidance, see xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
 
 *Checkpoint:* v2 clients work correctly against v3 registry.
 
 ==== Step 12: Test v3 Core API functionality
 
-Verify v3-specific API features work correctly:
+Verify v3-specific API features work correctly, including system endpoints, search endpoints, admin endpoints, and the Branch API.
 
-[source,bash]
-----
-./apicurio-verify-v3-api-features.sh
-----
-
-The script tests v3-specific features:
-
-* System endpoints (`/system/info`, `/system/limits`)
-* Search endpoints (`/search/groups`, `/search/versions`)
-* Admin endpoints
-* Group operations
-* Artifact operations
-* Branch API (v3-specific)
-* Version operations
-
-The script provides a comprehensive test report with pass/fail status for each feature.
+For the v3 API verification procedure, see xref:migration-scripts_{context}[Using migration scripts].
 
 *Checkpoint:* v3 Core API features working correctly.
 
@@ -513,15 +425,13 @@ Perform a dry run migration in a staging environment to estimate the timing of t
 
 .Procedure
 . Stop all client applications that connect to {registry} {registry-v2}.
-. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
+. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Using migration scripts].
 . Shut down {registry} {registry-v2}.
 . Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
-. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
-. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
-. Update client application configurations to point to {registry} 3.x. Clients can continue using the v2 API, which remains available at `/apis/registry/v2`.
+. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Using migration scripts].
+. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Using migration scripts].
+. Update client application configurations to point to {registry} 3.x. See xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
 . Start client applications.
-
-NOTE: After migration, consider updating client applications to use the v3 API for access to new features. See xref:migrating-registry-applications_{context}[Migrating registry client applications].
 
 // proc-troubleshooting
 [id="troubleshooting-migration_{context}"]
@@ -656,7 +566,7 @@ IMPORTANT: {registry} 3.x maintains backward compatibility with v2 client librar
 * Access to the source code or deployment configuration for each application you must update.
 * Understanding of your client application types (Kafka SerDes, REST API clients, SDK-based applications).
 
-=== Backward compatibility
+=== Understanding backward compatibility
 
 {registry} 3.x provides backward compatibility for existing v2 clients:
 
@@ -671,7 +581,7 @@ This approach lets you:
 . Test with existing v2 clients.
 . Gradually update clients to v3 libraries over time.
 
-=== Migration strategies
+=== Choosing a migration strategy
 
 ==== Strategy 1: Gradual migration
 
@@ -705,7 +615,7 @@ Update all clients and registry simultaneously:
 * Higher complexity and coordination required
 * More difficult to troubleshoot if issues arise
 
-=== Kafka SerDes migration
+=== Migrating Kafka SerDes
 
 Kafka SerDes applications are the most common {registry} integration and require careful migration planning. Follow these steps to migrate your SerDes configuration.
 
@@ -844,7 +754,7 @@ With proper configuration, {registry} 3.x SerDes reads messages serialized by v2
 
 This ensures zero data loss during migration.
 
-=== REST API client migration
+=== Migrating REST API clients
 
 For applications using {registry} REST API directly (not Kafka SerDes):
 
@@ -901,7 +811,7 @@ RegistryClientOptions options = RegistryClientOptions.builder()
 props.put(SerdeConfig.REGISTRY_CLIENT_OPTIONS, options);
 ----
 
-=== Client authentication migration
+=== Migrating client authentication
 
 OAuth2/OIDC configuration changes for REST API client applications:
 
@@ -991,7 +901,7 @@ Configuration keys in {registry} 3.x adopt a unified `apicurio.` namespace and r
 
 IMPORTANT: Configuration property changes are extensive in 3.x. Review all sections carefully and test in a staging environment before migrating production deployments.
 
-=== Overview of configuration changes
+=== Understanding configuration changes
 
 {registry} 3.x introduces major configuration changes:
 
@@ -1001,7 +911,7 @@ IMPORTANT: Configuration property changes are extensive in 3.x. Review all secti
 * **KafkaSQL**: New `apicurio.kafkasql.*` namespace with different topic requirements
 * **API features**: New granular deletion control properties
 
-=== Storage configuration
+=== Configuring storage
 
 ==== SQL storage (PostgreSQL, MySQL, H2)
 
@@ -1093,7 +1003,7 @@ APICURIO_KAFKASQL_TOPIC=kafkasql-journal-v3
 
 IMPORTANT: Use a different topic name for v3 (`kafkasql-journal-v3`) than v2 (`kafkasql-journal-v2`). The v3 journal format is incompatible with v2.
 
-=== KafkaSQL storage deep dive
+=== Understanding KafkaSQL storage
 
 {registry} 3.x completely re-engineers the KafkaSQL storage implementation with significant architectural improvements.
 
@@ -1172,7 +1082,7 @@ Snapshotting creates periodic database snapshots of the registry state, providin
 
 NOTE: Snapshotting is an advanced feature. Most deployments do not need snapshotting enabled. Consult the official {registry} documentation for more information on how to configure and use the snapshotting feature.
 
-=== Authentication and authorization
+=== Configuring authentication and authorization
 
 Authentication configuration changes significantly in 3.x, particularly for OAuth2/OIDC integration. Update your configuration properties as shown in the following table.
 
@@ -1235,7 +1145,7 @@ APICURIO_AUTH_ROLES_READONLY=sr-readonly
 
 IMPORTANT: In v3, `QUARKUS_OIDC_AUTH_SERVER_URL` must include the full realm path (`/realms/registry`). In v2, the realm was specified separately.
 
-=== API and deletion configuration
+=== Configuring API and deletion settings
 
 {registry} 3.x introduces granular control over deletion operations.
 
@@ -1277,7 +1187,7 @@ APICURIO_UI_FEATURES_READ-ONLY_ENABLED=false
 QUARKUS_HTTP_CORS_ORIGINS=*
 ----
 
-=== TLS/HTTPS configuration
+=== Configuring TLS/HTTPS
 
 TLS configuration remains unchanged between v2 and v3 for server-side settings. Use the same properties as shown in the following table.
 
@@ -1312,7 +1222,7 @@ QUARKUS_HTTP_INSECURE_REQUESTS=disabled
 
 NOTE: TLS configuration is identical for v2 and v3. Reuse the same certificates.
 
-=== Migration checklist
+=== Using the migration checklist
 
 . Inventory all configuration files, including deployment manifests, `application.properties`, and environment variables.
 . Create a mapping spreadsheet documenting v2 properties and their v3 equivalents.
@@ -1329,7 +1239,7 @@ NOTE: TLS configuration is identical for v2 and v3. Reuse the same certificates.
   * UI access
 . Document any custom or undocumented properties for future reference.
 
-=== Common configuration issues and solutions
+=== Resolving configuration issues
 
 ==== Issue: v3 fails to start with "Storage not configured"
 
@@ -1456,12 +1366,12 @@ echo $ACCESS_TOKEN | cut -d. -f2 | base64 -d | jq .realm_access.roles
 
 // con-migration-user-interface
 [id="user-interface_{context}"]
-== User interface
+== Understanding user interface changes
 
 [role="_abstract"]
 {registry} 3.x introduces a significant architectural change to the user interface. You deploy the UI as a separate container, providing more deployment flexibility but requiring additional configuration considerations during migration.
 
-=== Architectural changes
+=== Understanding architectural changes
 
 ==== Separate UI container
 
@@ -1496,7 +1406,7 @@ In {registry} {registry-v2}, the UI is built into the main `apicurio-registry` c
 * More flexible deployment options
 * Independent scaling of UI and API components
 
-=== Deployment options
+=== Choosing deployment options
 
 You have flexibility in how you deploy the UI container in relation to the API container. Choose one of the following options.
 
@@ -1565,7 +1475,7 @@ services:
 * Simpler certificate management
 * Avoids CORS complexity
 
-=== Configuration
+=== Configuring the user interface
 
 ==== Application container configuration (primary)
 
@@ -1674,7 +1584,7 @@ The UI container has its own environment variables that *override* the applicati
 
 IMPORTANT: The only *required* UI container property is `REGISTRY_API_URL`. Configure all other UI settings on the application container using `apicurio.ui.*` properties.
 
-=== Designer functionality (formerly Apicurio Studio)
+=== Using Designer functionality
 
 {registry} 3.1.0 introduces integrated Designer functionality, replacing the standalone Apicurio Studio project.
 
@@ -1715,12 +1625,12 @@ When enabled, you can:
 
 // ref-migration-scripts
 [id="migration-scripts_{context}"]
-== Migration scripts reference
+== Using migration scripts
 
 [role="_abstract"]
 The migration scripts automate key steps in the workflow. All scripts support interactive and automated modes using environment variables, with OAuth2 authentication support.
 
-=== Overview
+=== Understanding migration scripts
 
 The migration scripts are production-ready tools that handle the most critical and error-prone aspects of migration:
 
@@ -1732,7 +1642,7 @@ The migration scripts are production-ready tools that handle the most critical a
 
 Find all scripts in the Apicurio Registry GitHub repository under `migration-testing/docs/scripts/`.
 
-=== Common features
+=== Understanding common features
 
 All migration scripts share these common features:
 
@@ -2099,7 +2009,7 @@ export AUTH_CLIENT_SECRET="your-secret"
 * `0` - All feature tests passed
 * `1` - One or more feature tests failed
 
-=== Authentication
+=== Configuring authentication
 
 All scripts support OAuth2 authentication using client credentials grant type.
 
@@ -2134,7 +2044,7 @@ export AUTH_ENABLED="false"
 
 Alternatively, press Enter when prompted for authentication.
 
-=== TLS/HTTPS support
+=== Configuring TLS/HTTPS support
 
 *Production (trusted certificates):*
 
@@ -2203,7 +2113,7 @@ Solution:
 * Verify export file integrity.
 * Consider re-exporting and re-importing.
 
-=== Dependencies
+=== Installing dependencies
 
 All scripts require:
 
