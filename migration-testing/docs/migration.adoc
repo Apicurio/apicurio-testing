@@ -149,9 +149,9 @@ Before beginning migration:
 | Documented procedure to revert to v2 if needed
 |===
 
-// proc-migration-workflow
-[id="migration-workflow_{context}"]
-== Migration workflow
+// proc-migrating-minimal-downtime
+[id="migrating-minimal-downtime_{context}"]
+== Migrating with minimal downtime
 
 [role="_abstract"]
 Follow this phase-based workflow to migrate from {registry} {registry-v2} to 3.x with minimal downtime. Each phase includes steps and validation checkpoints.
@@ -459,9 +459,9 @@ Update documentation to reflect v3 as the production registry.
 
 *Checkpoint:* Migration complete, v2 decommissioned.
 
-// proc-maintenance-window-workflow
-[id="maintenance-window-workflow_{context}"]
-== Maintenance window workflow
+// proc-migrating-maintenance-window
+[id="migrating-maintenance-window_{context}"]
+== Migrating within a maintenance window
 
 [role="_abstract"]
 For environments where downtime is acceptable, follow this simpler sequential process.
