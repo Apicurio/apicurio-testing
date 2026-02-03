@@ -122,6 +122,11 @@ Timeline:
 * Total parallel operation period: 1-7 days
 * Budget for staging environment testing before production migration
 
+Regardless of the path chosen, you also need to consider the following at some point (not required immediately):
+
+* xref:migrating-registry-applications_{context}[Migrating {registry} client applications]
+* xref:migrating-registry-configuration_{context}[Updating {registry} configuration]
+
 .Prerequisites
 
 Before beginning migration:
@@ -259,6 +264,8 @@ See xref:migration-scripts_{context}[Migration Scripts Reference] for detailed u
 *Checkpoint:* Read-only mode active, write operations blocked.  Baseline documented, ready for data migration.
 
 === Phase 3: Data migration
+
+For detailed information about the export and import process, see xref:migrating-registry-data_{context}[Migrating {registry} data].
 
 ==== Step 5: Export data from {registry-v2}
 
@@ -459,33 +466,8 @@ Update documentation to reflect v3 as the production registry.
 
 *Checkpoint:* Migration complete, v2 decommissioned.
 
-// proc-migrating-maintenance-window
-[id="migrating-maintenance-window_{context}"]
-== Migrating within a maintenance window
+=== Rolling back to {registry-v2}
 
-[role="_abstract"]
-For environments where downtime is acceptable, follow this simpler sequential process.
-
-.Prerequisites
-Perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately. Once you are satisfied with the results, proceed with the production migration.
-
-.Procedure
-. Stop all client applications that connect to {registry} {registry-v2}.
-. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
-. Shut down {registry} {registry-v2}.
-. Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
-. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
-. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
-. Update client application configurations to point to {registry} 3.x. Clients can continue using the v2 API, which remains available at `/apis/registry/v2`.
-. Start client applications.
-
-NOTE: After migration, consider updating client applications to use the v3 API for access to new features. See xref:migrating-registry-applications_{context}[Migrating registry client applications].
-
-// proc-rolling-back
-[id="rolling-back_{context}"]
-== Rolling back to {registry-v2}
-
-[role="_abstract"]
 A key advantage of the parallel deployment (minimal downtime migration) approach is the ability to quickly roll back if issues arise.
 
 [cols="1,2,2", options="header"]
@@ -518,6 +500,28 @@ a|
 * Run comprehensive smoke tests after migration.
 | Reduces the likelihood of rollback being required.
 |===
+
+// proc-migrating-maintenance-window
+[id="migrating-maintenance-window_{context}"]
+== Migrating within a maintenance window
+
+[role="_abstract"]
+For environments where downtime is acceptable, follow this simpler sequential process.
+
+.Prerequisites
+Perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately. Once you are satisfied with the results, proceed with the production migration.
+
+.Procedure
+. Stop all client applications that connect to {registry} {registry-v2}.
+. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
+. Shut down {registry} {registry-v2}.
+. Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
+. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
+. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
+. Update client application configurations to point to {registry} 3.x. Clients can continue using the v2 API, which remains available at `/apis/registry/v2`.
+. Start client applications.
+
+NOTE: After migration, consider updating client applications to use the v3 API for access to new features. See xref:migrating-registry-applications_{context}[Migrating registry client applications].
 
 // proc-troubleshooting
 [id="troubleshooting-migration_{context}"]
@@ -570,7 +574,7 @@ Export data from v2 and import it into v3 using the export/import APIs.
 {registry} 3.x accepts the export archive generated from a {registry-v2} instance. Capture the archive from your existing deployment, provision the 3.x environment, and import the archive into the new cluster.
 
 .Prerequisites
-* Running {registry} instances of the {registry-v2} server you are exporting from and the 3.x server you are importing into.
+* Ensure both the source {registry} {registry-v2} server and the destination 3.x server are currently running.
 * Administrative credentials that allow access to the `/apis/registry/v2/admin/export` and `/apis/registry/v3/admin/import` endpoints.
 * If using OAuth2 authentication, valid client credentials with admin role (for example, `sr-admin`).
 
