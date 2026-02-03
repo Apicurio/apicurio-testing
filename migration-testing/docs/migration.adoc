@@ -528,18 +528,27 @@ If you encounter issues during migration:
 . Recovery time: 30-60 seconds
 . v2 data unchanged (export was read-only)
 
-=== Maintenance window workflow
+// proc-maintenance-window-workflow
+[id="maintenance-window-workflow_{context}"]
+== Maintenance window workflow
 
-For environments where downtime is acceptable, follow this simpler sequential process:
+[role="_abstract"]
+For environments where downtime is acceptable, follow this simpler sequential process.
 
+.Prerequisites
+Perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately. Once you are satisfied with the results, proceed with the production migration.
+
+.Procedure
 . Stop all client applications that connect to {registry} {registry-v2}.
-. Export data from {registry} {registry-v2}. See xref:migrating-registry-data_{context}[Migrating registry data].
+. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
 . Shut down {registry} {registry-v2}.
 . Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
-. Import data into {registry} 3.x. See xref:migrating-registry-data_{context}[Migrating registry data].
+. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
 . Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
-. Update client application configurations to point to {registry} 3.x.
+. Update client application configurations to point to {registry} 3.x. Clients can continue using the v2 API, which remains available at `/apis/registry/v2`.
 . Start client applications.
+
+NOTE: After migration, consider updating client applications to use the v3 API for access to new features. See xref:migrating-registry-applications_{context}[Migrating registry client applications].
 
 // proc-migrating-registry-data
 [id="migrating-registry-data_{context}"]
