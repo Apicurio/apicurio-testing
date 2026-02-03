@@ -122,44 +122,6 @@ Timeline:
 * Total parallel operation period: 1-7 days
 * Budget for staging environment testing before production migration
 
-[id="c-migration-rollback_{context}"]
-=== Rolling back to {registry-v2}
-
-A key advantage of the parallel deployment (minimal downtime migration) approach is the ability to quickly roll back if issues arise.
-
-[cols="1,2,2", options="header"]
-|===
-| Scenario
-| Description
-| Considerations
-
-| Immediate rollback
-(within hours of migration)
-a|
-* Switch load balancer traffic back to {registry-v2}.
-* Investigate issues with the 3.x deployment.
-a|
-* Recovery time: 30–60 seconds.
-* Minimal operational impact.
-
-| Delayed rollback
-(days after migration)
-a|
-* Assess data created in 3.x since migration.
-* Decide on rollback approach.
-a|
-* Options include:
-** Accepting data loss and rolling back to v2.
-** Fixing issues and remaining on v3 (preferred).
-
-| Preventing rollback scenarios
-a|
-* Test the migration thoroughly in a staging environment.
-* Validate data integrity before switching production traffic.
-* Run comprehensive smoke tests after migration.
-| Reduces the likelihood of rollback being required.
-|===
-
 .Prerequisites
 
 Before beginning migration:
@@ -497,9 +459,72 @@ Update documentation to reflect v3 as the production registry.
 
 *Checkpoint:* Migration complete, v2 decommissioned.
 
-=== Troubleshooting migration issues
+// proc-maintenance-window-workflow
+[id="maintenance-window-workflow_{context}"]
+== Maintenance window workflow
 
-If you encounter issues during migration:
+[role="_abstract"]
+For environments where downtime is acceptable, follow this simpler sequential process.
+
+.Prerequisites
+Perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately. Once you are satisfied with the results, proceed with the production migration.
+
+.Procedure
+. Stop all client applications that connect to {registry} {registry-v2}.
+. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
+. Shut down {registry} {registry-v2}.
+. Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
+. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
+. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
+. Update client application configurations to point to {registry} 3.x. Clients can continue using the v2 API, which remains available at `/apis/registry/v2`.
+. Start client applications.
+
+NOTE: After migration, consider updating client applications to use the v3 API for access to new features. See xref:migrating-registry-applications_{context}[Migrating registry client applications].
+
+// proc-rolling-back
+[id="rolling-back_{context}"]
+== Rolling back to {registry-v2}
+
+[role="_abstract"]
+A key advantage of the parallel deployment (minimal downtime migration) approach is the ability to quickly roll back if issues arise.
+
+[cols="1,2,2", options="header"]
+|===
+| Scenario
+| Description
+| Considerations
+
+| Immediate rollback (within hours of migration)
+a|
+* Switch load balancer traffic back to {registry-v2}.
+* Investigate issues with the 3.x deployment.
+a|
+* Recovery time: 30–60 seconds.
+* Minimal operational impact.
+
+| Delayed rollback (days after migration)
+a|
+* Assess data created in 3.x since migration.
+* Decide on rollback approach.
+a|
+* Options include:
+** Accepting data loss and rolling back to v2.
+** Fixing issues and remaining on v3 (preferred).
+
+| Preventing rollback scenarios
+a|
+* Test the migration thoroughly in a staging environment.
+* Validate data integrity before switching production traffic.
+* Run comprehensive smoke tests after migration.
+| Reduces the likelihood of rollback being required.
+|===
+
+// proc-troubleshooting
+[id="troubleshooting-migration_{context}"]
+== Troubleshooting migration issues
+
+[role="_abstract"]
+If you encounter issues during migration, use the following guidance.
 
 *Export fails:*
 
@@ -527,28 +552,6 @@ If you encounter issues during migration:
 . Investigate v3 issues
 . Recovery time: 30-60 seconds
 . v2 data unchanged (export was read-only)
-
-// proc-maintenance-window-workflow
-[id="maintenance-window-workflow_{context}"]
-== Maintenance window workflow
-
-[role="_abstract"]
-For environments where downtime is acceptable, follow this simpler sequential process.
-
-.Prerequisites
-Perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately. Once you are satisfied with the results, proceed with the production migration.
-
-.Procedure
-. Stop all client applications that connect to {registry} {registry-v2}.
-. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
-. Shut down {registry} {registry-v2}.
-. Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
-. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
-. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
-. Update client application configurations to point to {registry} 3.x. Clients can continue using the v2 API, which remains available at `/apis/registry/v2`.
-. Start client applications.
-
-NOTE: After migration, consider updating client applications to use the v3 API for access to new features. See xref:migrating-registry-applications_{context}[Migrating registry client applications].
 
 // proc-migrating-registry-data
 [id="migrating-registry-data_{context}"]
@@ -596,7 +599,7 @@ For detailed configuration options and OAuth2 authentication setup, see xref:mig
 +
 [source,bash]
 ----
-./apicurio-import-registry-data.sh
+./apicurio-import-regis try-data.sh
 ----
 +
 The script:
