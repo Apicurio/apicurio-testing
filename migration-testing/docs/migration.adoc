@@ -93,13 +93,17 @@ Select the scenario that best aligns with your architecture and customize the st
 | Development, staging, or systems with flexible SLAs.
 |===
 
+Regardless of the migration path you choose, you need to:
+
+* Test the data migration in a staging environment before migrating production. A dry run helps you estimate timing for export and import phases. See xref:migrating-registry-data_{context}[Migrating {registry} data].
+* Update client applications to point to {registry} 3.x. Perform this step after the data migration completes. See xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
+* Update configuration properties for the v3 deployment. Combine this with client updates where possible. See xref:migrating-registry-configuration_{context}[Updating {registry} configuration].
+
 .Minimal downtime migration
-The objective is to keep the service reachable. While data is being moved, a reverse proxy (such as nginx) manages the cutover.
+The objective is to keep the service reachable. While data is being moved, a reverse proxy (such as nginx) manages the cutover. See xref:migrating-minimal-downtime_{context}[Migrating with minimal downtime].
 
 .Maintenance window migration
-This approach ensures the cleanest data integrity. By stopping all client applications first, you ensure no data is in flight during the move.
-
-NOTE: Regardless of the path chosen, always perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately.
+This approach ensures the cleanest data integrity. By stopping all client applications first, you ensure no data is in flight during the move. See xref:migrating-maintenance-window_{context}[Migrating in a maintenance window].
 
 During a minimal downtime migration, you temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
 
@@ -121,11 +125,6 @@ Timeline:
 * Keep v2 running for 1-7 days after migration for rollback capability
 * Total parallel operation period: 1-7 days
 * Budget for staging environment testing before production migration
-
-Regardless of the path chosen, you also need to consider the following at some point (not required immediately):
-
-* xref:migrating-registry-applications_{context}[Migrating {registry} client applications]
-* xref:migrating-registry-configuration_{context}[Updating {registry} configuration]
 
 .Prerequisites
 
