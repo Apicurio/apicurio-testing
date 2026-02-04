@@ -2,14 +2,14 @@
 = Migrating from {registry} {registry-v2} to 3.x
 
 [role="_abstract"]
-This documentation provides guidance for migrating from {registry} {registry-v2} to {registry} 3.x.
+This documentation explains how to migrate from {registry} {registry-v2} to {registry} 3.x.
 
 {registry} 3.x includes breaking changes that require a new deployment, data migration, and client application updates. There is no in-place upgrade path from v2 to v3.
 
 
 // con-registry-migration-overview
 [id="registry-migration-overview_{context}"]
-== Understanding changes in {registry} 3.x
+== Changes in {registry} 3.x
 
 [role="_abstract"]
 {registry} 3.x includes a redesigned data model, a reworked REST API, and a refreshed SDK ecosystem compared to {registry} {registry-v2}.
@@ -58,8 +58,8 @@ Updated libraries are available for Java, TypeScript, Python, and Go, providing 
 
 
 // con-migration-planning
-[id="c-migration-planning_{context}"]
-== Planning the migration
+[id="migration-planning_{context}"]
+== Migration planning
 
 [role="_abstract"]
 Select the scenario that best aligns with your architecture and customize the steps for your infrastructure.
@@ -94,10 +94,10 @@ Select the scenario that best aligns with your architecture and customize the st
 |===
 
 .Minimal downtime migration
-The objective here is to keep the service reachable. While data is being moved, a reverse proxy (like Nginx) manages the cutover.
+The objective is to keep the service reachable. While data is being moved, a reverse proxy (such as nginx) manages the cutover.
 
 .Maintenance window migration
-This is the "cleanest" migration from a data integrity standpoint. By stopping all client applications first, you ensure no data is in flight during the move.
+This approach ensures the cleanest data integrity. By stopping all client applications first, you ensure no data is in flight during the move.
 
 NOTE: Regardless of the path chosen, always perform a dry run migration in a staging environment to estimate the timing of the data export and import phases accurately.
 
@@ -163,7 +163,7 @@ Follow this phase-based workflow to migrate from {registry} {registry-v2} to 3.x
 
 .Understanding the workflow
 
-The minimal downtime migration approach uses a load balancer to manage traffic routing, enabling minimal downtime for read operations and a controlled read-only period for write operations during data export.
+The minimal downtime migration approach uses a load balancer to manage traffic routing. This minimizes read-operation downtime and controls write operations during data export.
 
 [literal]
 ....
@@ -218,7 +218,7 @@ See xref:migrating-registry-configuration_{context}[Updating registry configurat
 
 ==== Step 3: Enable read-only mode
 
-Configure the load balancer to block write operations while allowing read operations. This ensures no data changes occur during export.
+Configure the load balancer to block write operations while allowing read operations. This prevents data changes during export.
 
 Update your load balancer configuration to block POST, PUT, PATCH, and DELETE methods:
 
@@ -235,7 +235,7 @@ server {
 }
 ----
 
-Reload the load balancer configuration and verify read-only mode is active.
+Reload the load balancer configuration and verify that read-only mode works correctly.
 
 *Impact:* Read operations (schema lookups) continue normally. Write operations (new schemas, updates) return HTTP 405. Kafka producers with auto-register fail to register new schemas.
 
@@ -243,7 +243,7 @@ Reload the load balancer configuration and verify read-only mode is active.
 
 Record the current state of your {registry-v2} deployment for comparison after migration.
 
-For the metrics capture procedure, see xref:migration-scripts_{context}[Using migration scripts].
+For the metrics capture procedure, see xref:migration-scripts_{context}[Migration scripts reference].
 
 *Checkpoint:* Read-only mode active, write operations blocked. Baseline documented, ready for data migration.
 
@@ -279,7 +279,7 @@ NOTE: The import adds to existing data (does not replace). Import into an empty 
 
 ==== Step 8: Validate import
 
-Verify the {registry} 3.x deployment and confirm data migration was successful.
+Verify the {registry} 3.x deployment and confirm that the data migration succeeded.
 
 For the validation procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
 
@@ -319,7 +319,7 @@ Reload the load balancer.
 
 Confirm traffic is flowing to {registry} 3.x through the load balancer. Verify the registry is accessible, version is 3.x, health checks pass, and write operations are enabled.
 
-For the verification procedure, see xref:migration-scripts_{context}[Using migration scripts].
+For the verification procedure, see xref:migration-scripts_{context}[Migration scripts reference].
 
 *Checkpoint:* Confirmed v3 is accessible and write operations working, no errors in logs.
 
@@ -337,7 +337,7 @@ For backward compatibility details and client migration guidance, see xref:migra
 
 Verify v3-specific API features work correctly, including system endpoints, search endpoints, admin endpoints, and the Branch API.
 
-For the v3 API verification procedure, see xref:migration-scripts_{context}[Using migration scripts].
+For the v3 API verification procedure, see xref:migration-scripts_{context}[Migration scripts reference].
 
 *Checkpoint:* v3 Core API features working correctly.
 
@@ -425,11 +425,11 @@ Perform a dry run migration in a staging environment to estimate the timing of t
 
 .Procedure
 . Stop all client applications that connect to {registry} {registry-v2}.
-. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Using migration scripts].
+. Export data from {registry} {registry-v2} using the export script. See xref:migration-scripts_{context}[Migration scripts reference].
 . Shut down {registry} {registry-v2}.
 . Deploy {registry} 3.x with updated configuration. See xref:migrating-registry-configuration_{context}[Updating registry configuration].
-. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Using migration scripts].
-. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Using migration scripts].
+. Import data into {registry} 3.x using the import script. See xref:migration-scripts_{context}[Migration scripts reference].
+. Validate the import using the verification scripts. See xref:migration-scripts_{context}[Migration scripts reference].
 . Update client application configurations to point to {registry} 3.x. See xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
 . Start client applications.
 
@@ -474,7 +474,7 @@ If you encounter issues during migration, use the following guidance.
 [role="_abstract"]
 Use the export and import APIs to migrate persisted content from {registry} {registry-v2} to a new {registry} 3.x deployment. The APIs preserve artifact identifiers, metadata, and references, ensuring downstream Kafka payloads remain compatible.
 
-IMPORTANT: The export/import procedure is *required* for migration. {registry} 3.x cannot directly read {registry-v2} storage:
+IMPORTANT: You *must* use the export/import procedure for migration. {registry} 3.x cannot directly read {registry-v2} storage:
 
 * *SQL storage:* The v3 database schema is incompatible with v2
 * *KafkaSQL storage:* The v3 Kafka journal topic format is incompatible with v2
@@ -513,7 +513,7 @@ For detailed configuration options and OAuth2 authentication setup, see xref:mig
 +
 [source,bash]
 ----
-./apicurio-import-regis try-data.sh
+./apicurio-import-registry-data.sh
 ----
 +
 The script:
@@ -917,7 +917,7 @@ IMPORTANT: Configuration property changes are extensive in 3.x. Review all secti
 
 .SQL storage (PostgreSQL, MySQL, H2)
 
-{registry} 3.x requires separate database instances or schemas for v2 and v3 due to schema incompatibility.
+You must use separate database instances or schemas for v2 and v3 because the database schemas are incompatible.
 
 [cols="1,1",options="header"]
 |===
@@ -968,7 +968,7 @@ IMPORTANT: Use separate database instances or different database names for v2 an
 
 .KafkaSQL storage
 
-{registry} 3.x requires a different Kafka topic than v2 because the journal format is incompatible.
+You must use a different Kafka topic for v3 than v2 because the journal formats are incompatible.
 
 [cols="1,1",options="header"]
 |===
@@ -1034,7 +1034,7 @@ retention.ms=-1
 retention.bytes=-1
 ----
 
-IMPORTANT: The journal topic must have `cleanup.policy=delete` with infinite retention (`retention.ms=-1`). Do not use log compaction. Preserve all journal events for proper registry operation.
+IMPORTANT: Configure the journal topic with `cleanup.policy=delete` and infinite retention (`retention.ms=-1`). Do not use log compaction. You must preserve all journal events for proper registry operation.
 
 *Creating the topic:*
 
@@ -1368,7 +1368,7 @@ echo $ACCESS_TOKEN | cut -d. -f2 | base64 -d | jq .realm_access.roles
 
 // con-migration-user-interface
 [id="user-interface_{context}"]
-== Understanding user interface changes
+== User interface changes
 
 [role="_abstract"]
 {registry} 3.x introduces a significant architectural change to the user interface. You deploy the UI as a separate container, providing more deployment flexibility but requiring additional configuration considerations during migration.
@@ -1627,7 +1627,7 @@ When enabled, you can:
 
 // ref-migration-scripts
 [id="migration-scripts_{context}"]
-== Using migration scripts
+== Migration scripts reference
 
 [role="_abstract"]
 The migration scripts automate key steps in the workflow. All scripts support interactive and automated modes using environment variables, with OAuth2 authentication support.
@@ -2050,7 +2050,7 @@ Alternatively, press Enter when prompted for authentication.
 
 *Production (trusted certificates):*
 
-Scripts work with trusted certificates by default. Use the following setting:
+The scripts use trusted certificates by default. To configure this explicitly:
 
 [source,bash]
 ----
