@@ -551,18 +551,21 @@ You can also use the Registry UI to export from v2 and import into v3.
 * {LinkServiceRegistryUser}[{NameServiceRegistryUser}]
 
 
-// proc-migrating-registry-applications
 [id="migrating-registry-applications_{context}"]
 == Migrating {registry} client applications
 
 [role="_abstract"]
 Review every application that integrates with {registry} {registry-v2} to verify compatibility with the v3 REST API, SDKs, and client libraries. Update dependency coordinates, reconfigure endpoints, and adjust automation to account for the new data model.
 
-.Prerequisites
+.Before you begin
+
+Ensure you have the following:
+
 * Existing {registry} {registry-v2} applications that rely on the v2 REST API or legacy client libraries.
 * Access to the source code or deployment configuration for each application you must update.
 * Understanding of your client application types (Kafka SerDes, REST API clients, SDK-based applications).
-* {registry} 3.x maintains backward compatibility with v2 client libraries and SerDes. Continue using v2 clients with a v3 registry during your migration period, allowing gradual client updates.
+
+NOTE: {registry} 3.x maintains backward compatibility with v2 client libraries and SerDes. You can continue using v2 clients with a v3 registry during your migration period, allowing gradual client updates.
 
 .Backward compatibility
 
@@ -579,9 +582,9 @@ This approach lets you:
 . Test with existing v2 clients.
 . Gradually update clients to v3 libraries over time.
 
-.Choosing a migration strategy
+=== Choosing a migration strategy
 
-.Strategy 1: Gradual migration
+.Gradual migration
 
 Migrate registry first, then update clients incrementally:
 
@@ -912,7 +915,7 @@ IMPORTANT: Configuration property changes are extensive in 3.x. Review all secti
 * **KafkaSQL**: New `apicurio.kafkasql.*` namespace with different topic requirements
 * **API features**: New granular deletion control properties
 
-.Configuring storage
+=== Configuring storage
 
 .SQL storage (PostgreSQL, MySQL, H2)
 
@@ -1144,7 +1147,7 @@ APICURIO_AUTH_ROLES_DEVELOPER=sr-developer
 APICURIO_AUTH_ROLES_READONLY=sr-readonly
 ----
 
-IMPORTANT: In v3, `QUARKUS_OIDC_AUTH_SERVER_URL` must include the full realm path (`/realms/registry`). In v2, the realm was specified separately.
+IMPORTANT: The `QUARKUS_OIDC_AUTH_SERVER_URL` property in v3 requires the full realm path (for example, `https://keycloak.example.com/realms/registry`). In v2, you specified the realm using a separate property.
 
 .Configuring API and deletion settings
 
@@ -1583,7 +1586,7 @@ The UI container has its own environment variables that *override* the applicati
 | Override for read-only mode (`true` or `false`)
 |===
 
-IMPORTANT: The only *required* UI container property is `REGISTRY_API_URL`. Configure all other UI settings on the application container using `apicurio.ui.*` properties.
+NOTE: The only required UI container property is `REGISTRY_API_URL`. Configure all other UI settings on the application container using `apicurio.ui.*` properties.
 
 .Using Designer functionality
 
@@ -2114,7 +2117,7 @@ Solution:
 * Verify export file integrity.
 * Consider re-exporting and re-importing.
 
-.Installing dependencies
+=== Installing dependencies
 
 All scripts require:
 
