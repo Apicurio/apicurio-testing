@@ -564,6 +564,7 @@ Ensure you have the following:
 * Existing {registry} {registry-v2} applications that rely on the v2 REST API or legacy client libraries.
 * Access to the source code or deployment configuration for each application you must update.
 * Understanding of your client application types (Kafka SerDes, REST API clients, SDK-based applications).
+* Required dependencies for running migration scripts. See xref:installing-script-dependencies_{context}[Installing dependencies].
 
 NOTE: {registry} 3.x maintains backward compatibility with v2 client libraries and SerDes. You can continue using v2 clients with a v3 registry during your migration period, allowing gradual client updates.
 
@@ -582,6 +583,7 @@ This approach lets you:
 . Test with existing v2 clients.
 . Gradually update clients to v3 libraries over time.
 
+[id="choosing-migration-strategy_{context}"]
 === Choosing a migration strategy
 
 .Gradual migration
@@ -915,6 +917,7 @@ IMPORTANT: Configuration property changes are extensive in 3.x. Review all secti
 * **KafkaSQL**: New `apicurio.kafkasql.*` namespace with different topic requirements
 * **API features**: New granular deletion control properties
 
+[id="configuring-storage_{context}"]
 === Configuring storage
 
 .SQL storage (PostgreSQL, MySQL, H2)
@@ -2117,6 +2120,7 @@ Solution:
 * Verify export file integrity.
 * Consider re-exporting and re-importing.
 
+[id="installing-script-dependencies_{context}"]
 === Installing dependencies
 
 All scripts require:
