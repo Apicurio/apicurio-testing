@@ -185,10 +185,10 @@ The minimal downtime migration approach uses a load balancer to manage traffic r
     (read/write)        (read-only)         (read/write)
 ....
 
-.Phase 1 Preparation
 NOTE: Test as much of the migration as possible in a staging environment before
 upgrading in production.
 
+.Phase 1 Preparation
 .  Deploy load balancer
 +
 --
