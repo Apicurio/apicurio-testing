@@ -185,23 +185,26 @@ The minimal downtime migration approach uses a load balancer to manage traffic r
     (read/write)        (read-only)         (read/write)
 ....
 
-=== Phase 1: Preparation
 NOTE: Test as much of the migration as possible in a staging environment before
 upgrading in production.
 
-==== Step 1: Deploy load balancer
-
+.Phase 1 Preparation
+.  Deploy load balancer
++
+--
 If not already using a load balancer, deploy nginx or HAProxy in front of your existing {registry-v2} deployment:
 
-. Deploy load balancer
-. Configure to route traffic to {registry-v2}
-. Update client applications to connect through load balancer
-. Validate all traffic flows correctly
+.. Deploy load balancer
+.. Configure to route traffic to {registry-v2}
+.. Update client applications to connect through load balancer
+.. Validate all traffic flows correctly
 
 See xref:migrating-registry-configuration_{context}[Updating registry configuration] for load balancer configuration examples.
+--
 
-==== Step 2: Prepare {registry} 3.x infrastructure
-
+.  Prepare {registry} 3.x infrastructure
++
+--
 Deploy the infrastructure for {registry} 3.x without starting the registry itself:
 
 * *For SQL storage:* Deploy separate database instance or create separate schema
@@ -212,11 +215,15 @@ Deploy the infrastructure for {registry} 3.x without starting the registry itsel
 See xref:migrating-registry-configuration_{context}[Updating registry configuration] for detailed configuration changes.
 
 *Checkpoint:* v2 traffic flowing through load balancer, v3 infrastructure ready.
+--
 
-=== Phase 2: Pre-migration validation
 
-==== Step 3: Enable read-only mode
+.Phase 2 Pre-migration validation
 
+[start=3]
+.  Enable read-only mode
++
+--
 Configure the load balancer to block write operations while allowing read operations. This prevents data changes during export.
 
 Update your load balancer configuration to block POST, PUT, PATCH, and DELETE methods:
@@ -238,18 +245,24 @@ Reload the load balancer configuration and verify that read-only mode works corr
 
 *Impact:* Read operations (schema lookups) continue normally. Write operations (new schemas, updates) return HTTP 405. Kafka producers with auto-register fail to register new schemas.
 
-==== Step 4: Capture baseline metrics
+--
 
+.  Capture baseline metrics
++
+--
 Record the current state of your {registry-v2} deployment for comparison after migration.
 
 For the metrics capture procedure, see xref:migration-scripts_{context}[Migration scripts reference].
 
 *Checkpoint:* Read-only mode active, write operations blocked. Baseline documented, ready for data migration.
+--
 
-=== Phase 3: Data migration
+.Phase 3 Data migration
 
-==== Step 5: Export data from {registry-v2}
-
+[start=5]
+.  Export data from {registry-v2}
++
+--
 Export all artifacts, versions, metadata, and rules from {registry-v2} while the registry is in read-only mode.
 
 For the export procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
@@ -257,17 +270,19 @@ For the export procedure, see xref:migrating-registry-data_{context}[Migrating {
 IMPORTANT: Access the registry directly (not through the load balancer) to bypass read-only restrictions on admin endpoints if needed.
 
 *Checkpoint:* Export complete, data snapshot captured.
-
-==== Step 6: Deploy {registry} 3.x
-
+--
+.  Deploy {registry} 3.x
++
+--
 Deploy {registry} 3.x using the infrastructure prepared in Step 2. Configure the v3 deployment similarly to the previous v2 deployment. Note that various configuration parameters are renamed or changed.
 
 See xref:migrating-registry-configuration_{context}[Updating registry configuration] for v3 configuration information and examples.
 
 *Checkpoint:* {registry} 3.x deployed and healthy (empty, awaiting import).
-
-==== Step 7: Import data into {registry} 3.x
-
+--
+.  Import data into {registry} 3.x
++
+--
 Import the exported ZIP archive into the 3.x deployment.
 
 For the import procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
@@ -275,9 +290,11 @@ For the import procedure, see xref:migrating-registry-data_{context}[Migrating {
 NOTE: The import adds to existing data (does not replace). Import into an empty v3 registry for best results.
 
 *Checkpoint:* Import complete, ready for validation.
+--
 
-==== Step 8: Validate import
-
+.  Validate import
++
+--
 Verify the {registry} 3.x deployment and confirm that the data migration succeeded.
 
 For the validation procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
@@ -285,11 +302,14 @@ For the validation procedure, see xref:migrating-registry-data_{context}[Migrati
 If validation fails, investigate import logs and retry if necessary. Do not proceed to traffic switch until all checks pass.
 
 *Checkpoint:* v3 has all data, data metrics match v2, ready for traffic switch.
+--
 
-=== Phase 4: Traffic switch
+.Phase 4 Traffic switch
 
-==== Step 9: Switch load balancer to {registry} 3.x
-
+[start=9]
+.  Switch load balancer to {registry} 3.x
++
+--
 Update the load balancer configuration to route to {registry} 3.x and enable read/write operations. The following example shows an nginx configuration:
 
 [source,nginx]
@@ -314,48 +334,61 @@ Reload the load balancer.
 
 *Checkpoint:* All traffic routed to v3, write operations resumed.
 
-==== Step 10: Verify traffic to the v3 deployment
+--
 
+.  Verify traffic to the v3 deployment
++
+--
 Confirm traffic is flowing to {registry} 3.x through the load balancer. Verify the registry is accessible, version is 3.x, health checks pass, and write operations are enabled.
 
 For the verification procedure, see xref:migration-scripts_{context}[Migration scripts reference].
 
 *Checkpoint:* Confirmed v3 is accessible and write operations working, no errors in logs.
+--
 
-=== Phase 5: Post-migration validation
+.Phase 5 Post-migration validation
 
-==== Step 11: Test v2 API backward compatibility
-
+[start=11]
+.  Test v2 API backward compatibility
++
+--
 Verify that existing v2 clients can access the 3.x registry through the v2 API compatibility layer.
 
 For backward compatibility details and client migration guidance, see xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
 
 *Checkpoint:* v2 clients work correctly against v3 registry.
+--
 
-==== Step 12: Test v3 Core API functionality
-
+.  Test v3 Core API functionality
++
+--
 Verify v3-specific API features work correctly, including system endpoints, search endpoints, admin endpoints, and the Branch API.
 
 For the v3 API verification procedure, see xref:migration-scripts_{context}[Migration scripts reference].
 
 *Checkpoint:* v3 Core API features working correctly.
+--
 
-==== Step 13: Run smoke tests
-
+.  Run smoke tests
++
+--
 Execute production smoke tests to validate critical functionality:
 
-. Test critical client applications
-. Verify Kafka SerDes applications work (if applicable)
-. Check authentication and authorization
-. Monitor error rates and performance metrics
-. Validate no increase in 4xx/5xx errors
+.. Test critical client applications
+.. Verify Kafka SerDes applications work (if applicable)
+.. Check authentication and authorization
+.. Monitor error rates and performance metrics
+.. Validate no increase in 4xx/5xx errors
 
 *Checkpoint:* All smoke tests passed, production traffic stable.
+--
 
-=== Phase 6: Stabilization
+.Phase 6 Stabilization
 
-==== Step 14: Monitor and observe
-
+[start=14]
+.  Monitor and observe
++
+--
 Keep {registry-v2} running but not serving traffic for rollback capability:
 
 * Monitor {registry} 3.x for 24-48 hours minimum
@@ -366,16 +399,20 @@ Keep {registry-v2} running but not serving traffic for rollback capability:
 See xref:migrating-registry-applications_{context}[Migrating registry client applications] for guidance on updating client applications.
 
 *Checkpoint:* v3 stable for 1-7 days, no rollback needed.
+--
+.Phase 7 Cleanup
 
-=== Phase 7: Cleanup
-
-==== Step 15: Decommission {registry-v2}
-
+[start=15]
+.  Decommission {registry-v2}
++
+--
 After 1-7 days of successful operation on {registry} 3.x, decommission v2 infrastructure.
 
 Update documentation to reflect v3 as the production registry.
 
 *Checkpoint:* Migration complete, v2 decommissioned.
+--
+
 
 .Rolling back to {registry-v2}
 
