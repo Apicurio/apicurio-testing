@@ -42,12 +42,12 @@ The v3 REST API focuses on consistency and discoverability:
 --
 
 
-Re-engineered Kafka storage variant::
+Re-engineered Kafka storage::
 The KafkaSQL storage implementation is optimized for stability and maintainability.
 The new design reduces startup times for large installations.
 
 Architectural changes in v3::
-The KafkaSQL storage uses a true event journaling pattern that requires a separate Kafka topic with different configuration. The v3 journal format is incompatible with v2.
+The KafkaSQL storage uses a true event journaling pattern that requires a different Kafka topic than v2, with different configuration settings. The v3 journal format is incompatible with v2.
 
 Separate UI container::
 The user interface is now deployed as a separate container, providing more deployment flexibility and independent scaling of UI and API components.
@@ -62,7 +62,7 @@ Updated libraries are available for Java, TypeScript, Python, and Go, providing 
 == Migration planning
 
 [role="_abstract"]
-Select the scenario that best aligns with your architecture and customize the steps for your infrastructure.
+Select the migration approach that best aligns with your architecture, and customize the steps for your infrastructure.
 
 [cols="1,2,2", options="header"]
 |===
@@ -96,7 +96,7 @@ Select the scenario that best aligns with your architecture and customize the st
 Regardless of the migration path you choose, you need to:
 
 * Test the data migration in a staging environment before migrating production. A dry run helps you estimate timing for export and import phases. See xref:migrating-registry-data_{context}[Migrating {registry} data].
-* Update client applications to point to {registry} 3.x. Perform this step after the data migration completes. See xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
+* Verify client applications connect to {registry} 3.x after the data migration completes. For minimal downtime migrations, verify the load balancer routes to 3.x and update any clients that bypass the load balancer. For maintenance window migrations, update client configurations directly. See xref:migrating-registry-applications_{context}[Migrating {registry} client applications].
 * Update configuration properties for the v3 deployment. Combine this with client updates where possible. See xref:migrating-registry-configuration_{context}[Updating {registry} configuration].
 
 .Minimal downtime migration
@@ -105,7 +105,7 @@ The objective is to keep the service reachable. While data is being moved, a rev
 .Maintenance window migration
 This approach ensures the cleanest data integrity. By stopping all client applications first, you ensure no data is in flight during the move. See xref:migrating-maintenance-window_{context}[Migrating in a maintenance window].
 
-During a minimal downtime migration, you temporarily run both {registry} {registry-v2} and 3.x simultaneously. Plan for:
+During a minimal downtime migration, you temporarily run both {registry} {registry-v2} and {registry} 3.x simultaneously. Plan for:
 
 Infrastructure:
 
@@ -117,8 +117,8 @@ Infrastructure:
 Storage requirements:
 
 * v2 database/storage: existing size
-* v3 database/storage: approximately same size as v2 (plan for 110% of v2 size)
-* Export file storage: approximately 10-20% of database size (compressed)
+* v3 database/storage: approximately same size as v2 (plan for 110% of the v2 size)
+* Export file storage: approximately 10-20% of the database size (compressed)
 
 Timeline:
 
@@ -141,7 +141,7 @@ Before beginning migration:
 | nginx, HAProxy, or similar for traffic management
 
 | Administrative access
-| Credentials for export/import API endpoints
+| Admin role credentials for export/import API endpoints and testing admin functionality
 
 | Database or storage
 | Separate database instance or schema (or separate Kafka topic) for {registry} 3.x
@@ -186,9 +186,9 @@ The minimal downtime migration approach uses a load balancer to manage traffic r
 ....
 
 NOTE: Test as much of the migration as possible in a staging environment before
-upgrading in production.
+migrating in production.
 
-.Phase 1 Preparation
+.Phase 1: Preparation
 .  Deploy load balancer
 +
 --
@@ -205,12 +205,12 @@ See xref:migrating-registry-configuration_{context}[Updating registry configurat
 .  Prepare {registry} 3.x infrastructure
 +
 --
-Deploy the infrastructure for {registry} 3.x without starting the registry itself:
+Deploy the infrastructure for {registry} 3.x without starting the registry application:
 
-* *For SQL storage:* Deploy separate database instance or create separate schema
-* *For KafkaSQL storage:* Use same Kafka cluster but configure different topic name
+* *For SQL storage:* Deploy a separate database instance or create a separate schema
+* *For KafkaSQL storage:* Use the same Kafka cluster but configure a different topic name
 * Prepare TLS certificates (can reuse {registry-v2} certificates)
-* Configure OAuth2/OIDC authentication provider
+* Configure the OAuth2/OIDC authentication provider
 
 See xref:migrating-registry-configuration_{context}[Updating registry configuration] for detailed configuration changes.
 
@@ -218,7 +218,7 @@ See xref:migrating-registry-configuration_{context}[Updating registry configurat
 --
 
 
-.Phase 2 Pre-migration validation
+.Phase 2: Pre-migration validation
 
 [start=3]
 .  Enable read-only mode
@@ -243,7 +243,7 @@ server {
 
 Reload the load balancer configuration and verify that read-only mode works correctly.
 
-*Impact:* Read operations (schema lookups) continue normally. Write operations (new schemas, updates) return HTTP 405. Kafka producers with auto-register fail to register new schemas.
+*Impact:* Read operations (schema lookups) continue normally. Write operations (new schemas, updates) return HTTP 405. Kafka producers with auto-registration enabled cannot register new schemas.
 
 --
 
@@ -257,7 +257,7 @@ For the metrics capture procedure, see xref:migration-scripts_{context}[Migratio
 *Checkpoint:* Read-only mode active, write operations blocked. Baseline documented, ready for data migration.
 --
 
-.Phase 3 Data migration
+.Phase 3: Data migration
 
 [start=5]
 .  Export data from {registry-v2}
@@ -287,7 +287,7 @@ Import the exported ZIP archive into the 3.x deployment.
 
 For the import procedure, see xref:migrating-registry-data_{context}[Migrating {registry} data].
 
-NOTE: The import adds to existing data (does not replace). Import into an empty v3 registry for best results.
+NOTE: The import adds to existing data and does not replace it. For best results, import into an empty v3 registry.
 
 *Checkpoint:* Import complete, ready for validation.
 --
@@ -304,7 +304,7 @@ If validation fails, investigate import logs and retry if necessary. Do not proc
 *Checkpoint:* v3 has all data, data metrics match v2, ready for traffic switch.
 --
 
-.Phase 4 Traffic switch
+.Phase 4: Traffic switch
 
 [start=9]
 .  Switch load balancer to {registry} 3.x
@@ -346,7 +346,7 @@ For the verification procedure, see xref:migration-scripts_{context}[Migration s
 *Checkpoint:* Confirmed v3 is accessible and write operations working, no errors in logs.
 --
 
-.Phase 5 Post-migration validation
+.Phase 5: Post-migration validation
 
 [start=11]
 .  Test v2 API backward compatibility
@@ -383,7 +383,7 @@ Execute production smoke tests to validate critical functionality:
 *Checkpoint:* All smoke tests passed, production traffic stable.
 --
 
-.Phase 6 Stabilization
+.Phase 6: Stabilization
 
 [start=14]
 .  Monitor and observe
@@ -478,7 +478,7 @@ If you encounter issues during migration, use the following guidance.
 
 *Export fails:*
 
-* Check authentication credentials are valid
+* Check the authentication credentials are valid
 * Verify {registry-v2} is accessible
 * Review registry logs for errors
 
@@ -543,7 +543,7 @@ The script:
 * Validates the export file format and size
 * Reports export duration and file details
 +
-For detailed configuration options and OAuth2 authentication setup, see xref:migration-scripts_{context}[Migration Scripts Reference].
+For detailed configuration options and OAuth2 authentication setup, see xref:migration-scripts_{context}[Migration scripts reference].
 
 . Import the export archive into {registry} 3.x using the import script:
 +
@@ -560,7 +560,7 @@ The script:
 * Verifies artifact counts before and after import
 * Reports global rules configuration
 +
-For detailed configuration options, see xref:migration-scripts_{context}[Migration Scripts Reference].
+For detailed configuration options, see xref:migration-scripts_{context}[Migration scripts reference].
 
 . Validate the imported data using the verification script:
 +
@@ -577,7 +577,7 @@ The script performs comprehensive validation:
 * Global rules validation
 * v2 API backward compatibility check (optional)
 +
-For detailed configuration options, see xref:migration-scripts_{context}[Migration Scripts Reference].
+For detailed configuration options, see xref:migration-scripts_{context}[Migration scripts reference].
 
 .Manual procedure (without scripts)
 
@@ -611,7 +611,7 @@ NOTE: {registry} 3.x maintains backward compatibility with v2 client libraries a
 
 * *v2 REST API* remains available at `/apis/registry/v2`
 * *v2 SerDes libraries* continue to work with v3 registry
-* *v3 SerDes* consumes v2 client Kafka messages (with proper configuration)
+* *v3 SerDes* can consumes v2 client Kafka messages (with proper configuration)
 * *No immediate client updates required* during migration
 
 This approach lets you:
@@ -635,7 +635,7 @@ Migrate registry first, then update clients incrementally:
 
 Benefits:
 
-* Lower risk - clients continue working during migration
+* Lower risk: clients continue working during migration
 * Flexible timeline for client updates
 * Easier rollback if issues occur
 
@@ -780,7 +780,7 @@ props.put(SerdeConfig.TLS_TRUSTSTORE_LOCATION, "/path/to/truststore.jks");
 props.put(SerdeConfig.TLS_TRUSTSTORE_PASSWORD, "password");
 props.put(SerdeConfig.TLS_TRUSTSTORE_TYPE, "JKS");
 
-// System properties still needed for OAuth2 Keycloak connections
+// System properties for OAuth2 Keycloak connections
 System.setProperty("javax.net.ssl.trustStore", "/path/to/truststore.jks");
 System.setProperty("javax.net.ssl.trustStorePassword", "password");
 ----
@@ -795,7 +795,7 @@ With proper configuration, {registry} 3.x SerDes reads messages serialized by v2
 * *v2 consumers* read messages produced by v3 producers
 * *Mixed environment* (v2 and v3 clients) is fully supported
 
-This ensures zero data loss during migration.
+This helps avoid data loss during migration.
 
 .Migrating REST API clients
 
@@ -931,8 +931,8 @@ RegistryClient client = RegistryClientFactory.create(options);
 [role="_additional-resources"]
 .Additional resources
 * {LinkServiceRegistryUser}[{NameServiceRegistryUser}]
-* Kafka SerDes Configuration Guide
-* Kiota SDK Documentation
+* https://docs.redhat.com/en/documentation/red_hat_build_of_apicurio_registry/3.1/html/apicurio_registry_user_guide/configuring-kafka-client-serdes_registry[Kafka SerDes Configuration Guide]
+* https://learn.microsoft.com/en-us/openapi/kiota/[Kiota SDK Documentation]
 
 
 // ref-migrating-registry-configuration
@@ -948,7 +948,7 @@ IMPORTANT: Configuration property changes are extensive in 3.x. Review all secti
 
 {registry} 3.x introduces major configuration changes:
 
-* **Namespace consolidation**: Most properties now use `apicurio.` prefix
+* **Namespace consolidation**: Most properties now use the `apicurio.` prefix
 * **Storage configuration**: Database settings moved out of `quarkus.datasource.*` namespace
 * **Authentication**: OAuth2/OIDC configuration uses full realm URLs
 * **KafkaSQL**: New `apicurio.kafkasql.*` namespace with different topic requirements
@@ -985,7 +985,7 @@ You must use separate database instances or schemas for v2 and v3 because the da
 | `APICURIO_STORAGE_KIND=sql` (required)
 
 | Not applicable
-| `APICURIO_STORAGE_SQL_KIND` (postgresql, mysql, h2)
+| `APICURIO_STORAGE_SQL_KIND` (PostgreSQL, MySQL, H2)
 |===
 
 *Example migration:*
@@ -1085,12 +1085,13 @@ IMPORTANT: Configure the journal topic with `cleanup.policy=delete` and infinite
 # Create v3 KafkaSQL topic with correct settings
 kafka-topics.sh --bootstrap-server kafka:9092 --create \
   --topic kafkasql-journal-v3 \
-  --partitions 1 \
+  --partitions 1 \  # <1>
   --replication-factor 3 \
   --config cleanup.policy=delete \
   --config retention.ms=-1 \
   --config retention.bytes=-1
 ----
+<1> The partition count is configurable. All journal messages use a global partition key for ordering, so a single partition is sufficient. Adjust based on your Kafka cluster configuration.
 
 *Verifying topic configuration:*
 
@@ -1116,7 +1117,7 @@ Snapshotting creates periodic database snapshots of the registry state, providin
 
 * **Faster startup times**: Registry loads from the snapshot instead of replaying the entire journal
 * **Backup capability**: Use snapshots for disaster recovery
-* **Journal compaction**: Safely remove older journal events after creating a snapshot
+* **Optional journal cleanup**: When snapshotting is enabled, you can configure finite retention to remove older journal events
 
 *When to use snapshotting:*
 
@@ -1124,7 +1125,9 @@ Snapshotting creates periodic database snapshots of the registry state, providin
 * Long-running deployments with growing journal topics
 * Need for faster registry startup/recovery times
 
-NOTE: Snapshotting is an advanced feature. Most deployments do not need snapshotting enabled. Consult the official {registry} documentation for more information on how to configure and use the snapshotting feature.
+IMPORTANT: Without snapshotting enabled, you must preserve all journal events (infinite retention). If you enable snapshotting and want to use finite retention, set `apicurio.kafkasql.topic-configuration-verification-override-enabled=true` and ensure snapshots are created more frequently than messages are deleted.
+
+NOTE: Snapshotting is an advanced feature. Most deployments do not need snapshotting enabled. Consult the link:https://www.apicur.io/registry/docs/apicurio-registry/3.1.x/index.html[official {registry} documentation]for more information on how to configure and use the snapshotting feature.
 
 .Configuring authentication and authorization
 
@@ -1151,13 +1154,13 @@ Authentication configuration changes significantly in 3.x, particularly for OAut
 | `APICURIO_AUTH_ROLE-BASED-AUTHORIZATION`
 
 | `REGISTRY_AUTH_ROLES_ADMIN`
-| `APICURIO_AUTH_ROLES.ADMIN`
+| `APICURIO_AUTH_ROLES_ADMIN`
 
 | `REGISTRY_AUTH_ROLES_DEVELOPER`
-| `APICURIO_AUTH_ROLES.DEVELOPER`
+| `APICURIO_AUTH_ROLES_DEVELOPER`
 
 | `REGISTRY_AUTH_ROLES_READONLY`
-| `APICURIO_AUTH_ROLES.READONLY`
+| `APICURIO_AUTH_ROLES_READONLY`
 
 | `QUARKUS_OIDC_TLS_VERIFICATION`
 | `QUARKUS_OIDC_TLS_VERIFICATION` (same)
@@ -1264,7 +1267,7 @@ QUARKUS_HTTP_SSL_CERTIFICATE_KEY_STORE_PASSWORD=password123
 QUARKUS_HTTP_INSECURE_REQUESTS=disabled
 ----
 
-NOTE: TLS configuration is identical for v2 and v3. Reuse the same certificates.
+NOTE: TLS configuration is identical for v2 and v3. If the hostname and routes remain the same, reuse the same certificates.
 
 .Using the migration checklist
 
@@ -1390,9 +1393,9 @@ QUARKUS_HTTP_CORS_ORIGINS=*
 ----
 # Update all role properties
 APICURIO_AUTH_ROLE-BASED-AUTHORIZATION=true
-APICURIO_AUTH_ROLES.ADMIN=sr-admin
-APICURIO_AUTH_ROLES.DEVELOPER=sr-developer
-APICURIO_AUTH_ROLES.READONLY=sr-readonly
+APICURIO_AUTH_ROLES_ADMIN=sr-admin
+APICURIO_AUTH_ROLES_DEVELOPER=sr-developer
+APICURIO_AUTH_ROLES_READONLY=sr-readonly
 ----
 
 Verify user has correct roles in Keycloak and token includes expected roles:
