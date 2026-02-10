@@ -1,8 +1,8 @@
 [id="registry-migration_{context}"]
-= Migrating from {registry} {registry-v2} to 3.x
+= Migrating from {registry} {registry-v2} to {registry} 3.x
 
 [role="_abstract"]
-This documentation explains how to migrate from {registry} {registry-v2} to {registry} 3.x.
+This documentation describes how to migrate from {registry} {registry-v2} to {registry} 3.x.
 
 {registry} 3.x includes breaking changes that require a new deployment, data migration, and client application updates. There is no in-place upgrade path from v2 to v3.
 
@@ -16,13 +16,13 @@ This documentation explains how to migrate from {registry} {registry-v2} to {reg
 
 Because of the breaking changes in 3.x, there is no in-place upgrade. You must deploy a new 3.x instance, migrate the persisted content, and update your client applications and automation.
 
-When migrating to version 3.x, take the following areas into account:
+When migrating to version 3.x, consider the following changes:
 
 
 Updated data model and governance::
 +
 --
-{registry} 3.x separates artifact metadata from version metadata and introduces first-class support for empty artifacts. These capabilities enable you to prepare governance metadata, rules, and branch structures before the first version exists. Additional highlights include:
+{registry} 3.x separates artifact metadata from version metadata and introduces first-class support for empty artifacts (artifacts without versions). These capabilities enable you to prepare governance metadata, rules, and branch structures before adding the first version. Additional highlights include:
 
 * Artifact metadata is now managed independently from version metadata.
 * Groups and artifacts can define custom labels to improve categorization.
@@ -37,7 +37,7 @@ The v3 REST API focuses on consistency and discoverability:
 * Group management covers descriptions, owners, labels, and hierarchical rules.
 * New search endpoints at `/search/groups` and `/search/versions` expand discovery.
 * Version-focused endpoints streamline content management and require explicit `Content-Type` headers.
-* A `dryRun` query parameter replaces the former `/test` endpoints.
+* A `dryRun` query parameter on artifact and version creation endpoints replaces the former `/test` endpoints. When `dryRun=true`, the API validates the request and returns a response without committing changes.
 * A dedicated Branch API enables multitrack artifact development.
 --
 
@@ -1654,7 +1654,7 @@ Designer functionality requires enabling content mutability for artifact version
 apicurio.rest.mutability.artifact-version-content.enabled=true
 ----
 
-When enabled, you can:
+When enabled, users with the developer or admin role can:
 
 * Create draft versions of artifacts
 * Edit draft content using the visual editor
@@ -1664,7 +1664,7 @@ When enabled, you can:
 [role="_additional-resources"]
 .Additional resources
 * {LinkServiceRegistryUser}[{NameServiceRegistryUser}] - User Interface Configuration
-* Apicurio Studio Deprecation Announcement: https://www.apicur.io/blog/2025/10/23/studio-fully-deprecated
+* https://www.apicur.io/blog/2025/10/23/studio-fully-deprecated[Apicurio Studio Deprecation Announcement]
 
 
 // ref-migration-scripts
@@ -1779,7 +1779,7 @@ export OUTPUT_FILE="registry-baseline.txt"
 
 *Output:*
 
-Text file containing artifact summary and global rules (default: `registry-metrics.txt`).
+Text file containing artifact summary and global rules (default: `registry-baseline.txt`).
 
 .Script: apicurio-export-registry-data.sh
 
@@ -2108,7 +2108,7 @@ For testing with self-signed certificates:
 export SKIP_TLS_VERIFY="true"
 ----
 
-WARNING: Only use `SKIP_TLS_VERIFY=true` in non-production environments.
+WARNING: Use `SKIP_TLS_VERIFY=true` only in non-production environments.
 
 .Troubleshooting scripts
 
