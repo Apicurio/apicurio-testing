@@ -330,7 +330,7 @@ server {
 
 Reload the load balancer.
 
-*Downtime:* This operation causes 10-30 seconds of downtime for all operations during reload.
+*Service Interruption:* This operation may cause 10-30 seconds of brief service interruption during the reload. If your load balancer supports graceful reloads (for example, `nginx -s reload`), the interruption may be minimal.
 
 *Checkpoint:* All traffic routed to v3, write operations resumed.
 
@@ -400,7 +400,7 @@ See xref:migrating-registry-applications_{context}[Migrating registry client app
 
 *Checkpoint:* v3 stable for 1-7 days, no rollback needed.
 --
-.Phase 7 Cleanup
+.Phase 7: Cleanup
 
 [start=15]
 .  Decommission {registry-v2}
@@ -487,7 +487,7 @@ If you encounter issues during migration, use the following guidance.
 * Verify export file is valid ZIP format
 * Check {registry} 3.x has sufficient storage
 * Review registry v3 logs for specific errors
-* If partial import occurred, drop v3 database and retry
+* If partial import occurred, drop v3 database (or Kafka topic) and retry
 
 *Baseline metrics mismatch:*
 
@@ -510,12 +510,12 @@ If you encounter issues during migration, use the following guidance.
 [role="_abstract"]
 Use the export and import APIs to migrate persisted content from {registry} {registry-v2} to a new {registry} 3.x deployment. The APIs preserve artifact identifiers, metadata, and references, ensuring downstream Kafka payloads remain compatible.
 
-IMPORTANT: You *must* use the export/import procedure for migration. {registry} 3.x cannot directly read {registry-v2} storage:
+IMPORTANT: You *must* use the export/import procedure for migration. {registry} 3.x cannot directly read {registry-v2} storage because the underlying data structures have changed significantly:
 
-* *SQL storage:* The v3 database schema is incompatible with v2
-* *KafkaSQL storage:* The v3 Kafka journal topic format is incompatible with v2
+* *SQL storage:* The v3 database schema is completely redesigned and incompatible with v2. The data model changes (separate artifact and version metadata, new branch support) require a different table structure.
+* *KafkaSQL storage:* The v3 Kafka journal topic uses a new event journaling format that is incompatible with v2. The v2 topic cannot be reused.
 
-Export data from v2 and import it into v3 using the export/import APIs.
+Export data from v2 and import it into v3 using the export/import APIs. The import process automatically transforms the data to the v3 format.
 
 {registry} 3.x accepts the export archive generated from a {registry-v2} instance. Capture the archive from your existing deployment, provision the 3.x environment, and import the archive into the new cluster.
 
@@ -578,10 +578,6 @@ The script performs comprehensive validation:
 * v2 API backward compatibility check (optional)
 +
 For detailed configuration options, see xref:migration-scripts_{context}[Migration scripts reference].
-
-.Manual procedure (without scripts)
-
-You can also use the Registry UI to export from v2 and import into v3.
 
 [role="_additional-resources"]
 .Additional resources
@@ -754,6 +750,8 @@ props.put(SerdeConfig.AUTH_CLIENT_SECRET, "secret");
 | `USE_ID` with `IdOption` (default "globalId")
 | `USE_ID` with `IdOption` (default "contentId")
 |===
+
+NOTE: The default ID option changed from `globalId` to `contentId` in v3. Both v2 and v3 SerDes can read messages using either ID type, ensuring compatibility during migration. If your v2 applications explicitly set `USE_ID=contentId`, you can remove this configuration in v3 as it is now the default.
 
 .TLS and HTTPS configuration
 
