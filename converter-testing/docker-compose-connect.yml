@@ -1,0 +1,45 @@
+services:
+  connect:
+    build:
+      context: ./connect
+      args:
+        KAFKA_VERSION: ${KAFKA_VERSION:-3.9.1}
+        APICURIO_VERSION: ${APICURIO_VERSION:-3.0.7.Final}
+    container_name: converter-connect
+    hostname: connect
+    ports:
+      - "8083:8083"
+    environment:
+      # Kafka Connect distributed worker configuration
+      KAFKA_CONNECT_BOOTSTRAP_SERVERS: "converter-kafka:29092"
+      KAFKA_CONNECT_GROUP_ID: "converter-test-group"
+      KAFKA_CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
+      KAFKA_CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
+      KAFKA_CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
+      KAFKA_CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      KAFKA_CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      KAFKA_CONNECT_PLUGIN_PATH: "/opt/kafka/connect-plugins"
+      KAFKA_CONNECT_REST_ADVERTISED_HOST_NAME: "connect"
+    volumes:
+      - connect-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/ || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - converter-network
+    restart: unless-stopped
+
+volumes:
+  connect-data:
+    name: converter-connect-data
+
+networks:
+  converter-network:
+    name: converter-test-network
+    external: true

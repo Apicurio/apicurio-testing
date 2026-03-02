@@ -1,0 +1,12 @@
+{
+  "name": "json-file-sink",
+  "config": {
+    "connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
+    "tasks.max": "1",
+    "topics": "json-converter-test",
+    "file": "/data/json-sink-output.txt",
+    "value.converter": "io.apicurio.registry.utils.converter.ExtJsonConverter",
+    "value.converter.apicurio.registry.url": "http://registry:8080/apis/registry/v3",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter"
+  }
+}
