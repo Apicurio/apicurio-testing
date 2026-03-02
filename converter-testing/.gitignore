@@ -1,0 +1,5 @@
+logs/
+data/*.txt
+data/*.json
+!data/.gitkeep
+clients/*/target/
