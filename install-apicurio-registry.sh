@@ -344,6 +344,7 @@ export MYSQL_ROOT_PASSWORD
 export POSTGRESQL_USER
 export POSTGRESQL_DATABASE
 export POSTGRESQL_PASSWORD
+export TLS_SECRET_NAME="${TLS_SECRET_NAME:-apicurio-tls-cert}"
 export BASE_DOMAIN="apicurio-testing.org"
 export APPS_DIR="$CLUSTER_DIR/namespaces/$NAMESPACE/apps"
 export APP_DIR="$APPS_DIR/$APPLICATION_NAME"
@@ -392,7 +393,7 @@ fi
 # Wait for the health endpoint to be ready
 echo "Waiting for Apicurio Registry health endpoint to be ready..."
 # Use HTTPS for profiles that configure TLS on routes (e.g., authn)
-if [[ "$PROFILE" == "authn" ]]; then
+if [[ "$PROFILE" == "authn" || "$PROFILE" == "edge-tls" || "$PROFILE" == "openshift-edge-tls" ]]; then
     HEALTH_PROTOCOL="https"
 else
     HEALTH_PROTOCOL="http"
