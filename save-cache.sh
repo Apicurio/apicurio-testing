@@ -55,7 +55,14 @@ if [[ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]]; then
   error_exit "Not on 'main' branch in cache directory: $CACHE_DIR"
 fi
 
-git fetch --all
+# Unshallow if this is a shallow clone (e.g. from load-cache.sh --depth 1)
+# to ensure pull/rebase operations work reliably.
+if [[ -f "$(git rev-parse --git-dir)/shallow" ]]; then
+  echo "Unshallowing the repository before saving..."
+  git fetch --unshallow
+else
+  git fetch --all
+fi
 git add .
 
 if ! git diff-index --quiet HEAD --; then

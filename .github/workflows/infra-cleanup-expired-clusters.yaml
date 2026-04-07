@@ -11,6 +11,10 @@ on:
         default: false
         required: false
 
+concurrency:
+  group: infra-cleanup-expired-clusters
+  cancel-in-progress: true
+
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_DEFAULT_REGION: "us-east-1"
@@ -72,16 +76,16 @@ jobs:
 
               if [[ "$DRY_RUN" == "true" ]]; then
                 echo "  ⏭️  Dry run: skipping destruction."
+                DESTROYED_CLUSTERS="${DESTROYED_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown},"
               else
                 echo "  Destroying cluster '$CLUSTER_NAME'..."
                 if ./destroy-cluster.sh --cluster "$CLUSTER_NAME"; then
                   echo "  ✅ Cluster '$CLUSTER_NAME' destroyed successfully."
+                  DESTROYED_CLUSTERS="${DESTROYED_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown},"
                 else
                   echo "  ❌ Failed to destroy cluster '$CLUSTER_NAME'."
                 fi
               fi
-
-              DESTROYED_CLUSTERS="${DESTROYED_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown},"
             else
               REMAINING=$((EXPIRATION_EPOCH - NOW_EPOCH))
               REMAINING_H=$((REMAINING / 3600))
@@ -97,7 +101,9 @@ jobs:
                   THRESHOLD=$((TOTAL_DURATION / 5))
                   if [[ "$REMAINING" -le "$THRESHOLD" ]]; then
                     echo "  ⚠️  Less than 20% time remaining! Marking for notification."
-                    touch "$CLUSTER_DIR/expiration-warned"
+                    if [[ "$DRY_RUN" != "true" ]]; then
+                      touch "$CLUSTER_DIR/expiration-warned"
+                    fi
                     EXPIRING_CLUSTERS="${EXPIRING_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown}:${REMAINING_H},"
                   fi
                 fi

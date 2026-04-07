@@ -13,6 +13,10 @@ on:
         required: true
         default: 10
 
+concurrency:
+  group: infra-extend-expiration-${{ inputs.cluster-name }}
+  cancel-in-progress: true
+
 jobs:
 
   extend:
