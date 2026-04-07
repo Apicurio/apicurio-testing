@@ -38,11 +38,12 @@ jobs:
       - name: Find and destroy expired clusters
         id: cleanup
         run: |
-          NOW=$(date +%s)
+          NOW_EPOCH=$(date +%s)
           DESTROYED_CLUSTERS=""
+          EXPIRING_CLUSTERS=""
           DRY_RUN="${{ inputs.dry-run || 'false' }}"
 
-          echo "Current time: $(date -u +%Y-%m-%dT%H:%M:%SZ) (epoch: $NOW)"
+          echo "Current time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
           for EXPIRATION_FILE in cache/clusters/*/expiration; do
             if [[ ! -f "$EXPIRATION_FILE" ]]; then
@@ -51,7 +52,7 @@ jobs:
 
             CLUSTER_DIR=$(dirname "$EXPIRATION_FILE")
             CLUSTER_NAME=$(basename "$CLUSTER_DIR")
-            EXPIRATION_TIMESTAMP=$(cat "$EXPIRATION_FILE")
+            EXPIRATION_ISO=$(cat "$EXPIRATION_FILE")
 
             # Read who created the cluster
             CREATED_BY=""
@@ -59,15 +60,15 @@ jobs:
               CREATED_BY=$(cat "$CLUSTER_DIR/created-by")
             fi
 
-            if [[ -z "$EXPIRATION_TIMESTAMP" ]] || [[ ! "$EXPIRATION_TIMESTAMP" =~ ^[0-9]+$ ]]; then
-              echo "⚠️  Skipping cluster '$CLUSTER_NAME': invalid expiration timestamp."
+            # Convert ISO 8601 timestamp to epoch for comparison
+            EXPIRATION_EPOCH=$(date -u -d "$EXPIRATION_ISO" +%s 2>/dev/null)
+            if [[ -z "$EXPIRATION_EPOCH" ]]; then
+              echo "⚠️  Skipping cluster '$CLUSTER_NAME': invalid expiration timestamp '$EXPIRATION_ISO'."
               continue
             fi
 
-            EXPIRES_AT=$(date -u -d "@$EXPIRATION_TIMESTAMP" +%Y-%m-%dT%H:%M:%SZ)
-
-            if [[ "$NOW" -ge "$EXPIRATION_TIMESTAMP" ]]; then
-              echo "🗑️  Cluster '$CLUSTER_NAME' has expired (expired at $EXPIRES_AT, created by ${CREATED_BY:-unknown})."
+            if [[ "$NOW_EPOCH" -ge "$EXPIRATION_EPOCH" ]]; then
+              echo "🗑️  Cluster '$CLUSTER_NAME' has expired (expired at $EXPIRATION_ISO, created by ${CREATED_BY:-unknown})."
 
               if [[ "$DRY_RUN" == "true" ]]; then
                 echo "  ⏭️  Dry run: skipping destruction."
@@ -82,21 +83,40 @@ jobs:
 
               DESTROYED_CLUSTERS="${DESTROYED_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown},"
             else
-              REMAINING=$(( (EXPIRATION_TIMESTAMP - NOW) / 3600 ))
-              echo "⏳ Cluster '$CLUSTER_NAME' expires at $EXPIRES_AT (~${REMAINING}h remaining, created by ${CREATED_BY:-unknown})."
+              REMAINING=$((EXPIRATION_EPOCH - NOW_EPOCH))
+              REMAINING_H=$((REMAINING / 3600))
+              echo "⏳ Cluster '$CLUSTER_NAME' expires at $EXPIRATION_ISO (~${REMAINING_H}h remaining, created by ${CREATED_BY:-unknown})."
+
+              # Check if cluster is expiring soon (less than 20% of total time remaining)
+              if [[ -f "$CLUSTER_DIR/created-at" ]] && [[ ! -f "$CLUSTER_DIR/expiration-warned" ]]; then
+                CREATED_AT_ISO=$(cat "$CLUSTER_DIR/created-at")
+                CREATED_AT_EPOCH=$(date -u -d "$CREATED_AT_ISO" +%s 2>/dev/null)
+                if [[ -n "$CREATED_AT_EPOCH" ]]; then
+                  TOTAL_DURATION=$((EXPIRATION_EPOCH - CREATED_AT_EPOCH))
+                  # 20% threshold (integer math, rounded down)
+                  THRESHOLD=$((TOTAL_DURATION / 5))
+                  if [[ "$REMAINING" -le "$THRESHOLD" ]]; then
+                    echo "  ⚠️  Less than 20% time remaining! Marking for notification."
+                    touch "$CLUSTER_DIR/expiration-warned"
+                    EXPIRING_CLUSTERS="${EXPIRING_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown}:${REMAINING_H},"
+                  fi
+                fi
+              fi
             fi
           done
 
           echo "destroyed-clusters=$DESTROYED_CLUSTERS" >> $GITHUB_OUTPUT
+          echo "expiring-clusters=$EXPIRING_CLUSTERS" >> $GITHUB_OUTPUT
 
       - name: Save cluster state
         if: always()
         uses: ./.github/actions/save-cluster-state
 
       - name: Send Slack notification
-        if: ${{ steps.cleanup.outputs.destroyed-clusters != '' }}
+        if: ${{ steps.cleanup.outputs.destroyed-clusters != '' || steps.cleanup.outputs.expiring-clusters != '' }}
         run: |
           DESTROYED="${{ steps.cleanup.outputs.destroyed-clusters }}"
+          EXPIRING="${{ steps.cleanup.outputs.expiring-clusters }}"
           DRY_RUN="${{ inputs.dry-run || 'false' }}"
           WEBHOOK="${{ secrets.SLACK_NOTIFICATION_WEBHOOK }}"
 
@@ -105,38 +125,56 @@ jobs:
             exit 0
           fi
 
-          # Read the slack users mapping
           SLACK_USERS_FILE="slack-users.json"
 
-          # Build the message
-          MESSAGE=""
-          IFS=',' read -ra PAIRS <<< "$DESTROYED"
-          for PAIR in "${PAIRS[@]}"; do
-            if [[ -z "$PAIR" ]]; then
-              continue
-            fi
-
-            CLUSTER_NAME="${PAIR%%:*}"
-            GITHUB_USER="${PAIR#*:}"
-
-            # Look up Slack user ID
-            SLACK_ID=""
+          # Helper: resolve GitHub user to Slack mention
+          resolve_mention() {
+            local GITHUB_USER="$1"
+            local SLACK_ID=""
             if [[ -f "$SLACK_USERS_FILE" ]]; then
               SLACK_ID=$(jq -r --arg user "$GITHUB_USER" '.[$user] // ""' "$SLACK_USERS_FILE")
             fi
-
             if [[ -n "$SLACK_ID" ]]; then
-              USER_MENTION="<@${SLACK_ID}>"
+              echo "<@${SLACK_ID}>"
             else
-              USER_MENTION="$GITHUB_USER"
+              echo "$GITHUB_USER"
             fi
+          }
 
-            if [[ "$DRY_RUN" == "true" ]]; then
-              MESSAGE="${MESSAGE}• Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) has expired (dry run, not destroyed)\n"
-            else
-              MESSAGE="${MESSAGE}• Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) has been destroyed (expired)\n"
-            fi
-          done
+          MESSAGE=""
+
+          # Expiring soon warnings
+          if [[ -n "$EXPIRING" ]]; then
+            IFS=',' read -ra PAIRS <<< "$EXPIRING"
+            for PAIR in "${PAIRS[@]}"; do
+              if [[ -z "$PAIR" ]]; then
+                continue
+              fi
+              CLUSTER_NAME=$(echo "$PAIR" | cut -d: -f1)
+              GITHUB_USER=$(echo "$PAIR" | cut -d: -f2)
+              REMAINING_H=$(echo "$PAIR" | cut -d: -f3)
+              USER_MENTION=$(resolve_mention "$GITHUB_USER")
+              MESSAGE="${MESSAGE}• ⚠️ Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) expires in ~${REMAINING_H}h\n"
+            done
+          fi
+
+          # Destroyed clusters
+          if [[ -n "$DESTROYED" ]]; then
+            IFS=',' read -ra PAIRS <<< "$DESTROYED"
+            for PAIR in "${PAIRS[@]}"; do
+              if [[ -z "$PAIR" ]]; then
+                continue
+              fi
+              CLUSTER_NAME="${PAIR%%:*}"
+              GITHUB_USER="${PAIR#*:}"
+              USER_MENTION=$(resolve_mention "$GITHUB_USER")
+              if [[ "$DRY_RUN" == "true" ]]; then
+                MESSAGE="${MESSAGE}• 🗑️ Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) has expired (dry run, not destroyed)\n"
+              else
+                MESSAGE="${MESSAGE}• 🗑️ Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) has been destroyed (expired)\n"
+              fi
+            done
+          fi
 
           LINK="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           PAYLOAD=$(jq -n \

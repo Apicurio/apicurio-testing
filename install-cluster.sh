@@ -242,9 +242,11 @@ cd $CLUSTER_DIR || exit 1
 # Write cluster metadata
 echo -n "$CREATED_BY" > "$CLUSTER_DIR/created-by"
 if [[ -n "$EXPIRATION_HOURS" ]]; then
-    EXPIRATION_TIMESTAMP=$(date -u -d "+${EXPIRATION_HOURS} hours" +%s)
-    echo -n "$EXPIRATION_TIMESTAMP" > "$CLUSTER_DIR/expiration"
-    echo "Cluster will expire at $(date -u -d "@$EXPIRATION_TIMESTAMP" +%Y-%m-%dT%H:%M:%SZ) (in $EXPIRATION_HOURS hours)"
+    CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    EXPIRATION=$(date -u -d "+${EXPIRATION_HOURS} hours" +%Y-%m-%dT%H:%M:%SZ)
+    echo -n "$CREATED_AT" > "$CLUSTER_DIR/created-at"
+    echo -n "$EXPIRATION" > "$CLUSTER_DIR/expiration"
+    echo "Cluster will expire at $EXPIRATION (in $EXPIRATION_HOURS hours)"
 fi
 
 "$BASE_DIR/download-ocp-installer.sh" --version "$OCP_VERSION"
