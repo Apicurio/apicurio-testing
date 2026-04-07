@@ -154,7 +154,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --created-by)
-            CREATED_BY="$2"
+            CREATED_BY=$(echo "$2" | tr -cd 'a-zA-Z0-9_-')
             shift 2
             ;;
         -h|--help)
