@@ -33,6 +33,13 @@ on:
           the old DNS records in the apicurio-testing.org hosted zone in AWS Route53).
         required: true
         default: false
+      expiration-hours:
+        type: number
+        description: |
+          Cluster expiration time in hours from now. After this time, the cluster may be
+          automatically destroyed by the cleanup cron job.
+        required: false
+        default: 10
   # Same parameters as above, see the descriptions.
   workflow_call:
     inputs:
@@ -51,6 +58,10 @@ on:
       force:
         type: boolean
         required: true
+      expiration-hours:
+        type: number
+        required: false
+        default: 10
 
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -83,6 +94,7 @@ jobs:
           echo "  compute-nodes: ${{ inputs.compute-nodes }}"
           echo "  cluster-version: ${{ inputs.cluster-version }}"
           echo "  force: ${{ inputs.force }}"
+          echo "  expiration-hours: ${{ inputs.expiration-hours }}"
 
       - name: Checkout ${{ github.ref }}
         uses: actions/checkout@v4
@@ -100,12 +112,18 @@ jobs:
           else
             INSTALL_ARGS=""
           fi
+          EXPIRATION_ARGS=""
+          if [ "${{ inputs.expiration-hours }}" != "" ] && [ "${{ inputs.expiration-hours }}" != "0" ]; then
+            EXPIRATION_ARGS="--expiration ${{ inputs.expiration-hours }}"
+          fi
           ./install-cluster.sh --cluster ${{ inputs.cluster-name }} \
               --ocpVersion ${{ inputs.cluster-version }} \
               --controlPlaneNodes ${{ inputs.control-nodes }} \
               --computeNodes ${{ inputs.compute-nodes }} \
               --log-level warn \
-              $INSTALL_ARGS
+              --created-by "${{ github.actor }}" \
+              $INSTALL_ARGS \
+              $EXPIRATION_ARGS
 
       - name: Install OpenShift Docker Pull Credentials
         run: |

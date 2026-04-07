@@ -199,7 +199,9 @@ jobs:
               --ocpVersion $OPENSHIFT_VERSION \
               --controlPlaneNodes $CONTROL_PLANE_NODES \
               --computeNodes $COMPUTE_NODES \
-              --log-level warn
+              --log-level warn \
+              --created-by "${{ github.actor }}" \
+              --expiration 6
 
       - name: Restore cluster state
         if: ${{ inputs.skipClusterInstall == 'true' }}
@@ -2090,7 +2092,7 @@ jobs:
 
       - name: Install OpenShift cluster
         run: |
-          ./install-cluster.sh --cluster $CLUSTER_NAME --ocpVersion $OPENSHIFT_VERSION --controlPlaneNodes $CONTROL_PLANE_NODES --computeNodes $COMPUTE_NODES --log-level warn
+          ./install-cluster.sh --cluster $CLUSTER_NAME --ocpVersion $OPENSHIFT_VERSION --controlPlaneNodes $CONTROL_PLANE_NODES --computeNodes $COMPUTE_NODES --log-level warn --created-by "${{ github.actor }}" --expiration 6
 
       - name: Install OpenShift Docker Pull Credentials
         run: |

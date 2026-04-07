@@ -1,0 +1,146 @@
+name: "[Infra] Cleanup expired clusters"
+run-name: "[Infra] Cleanup expired clusters"
+on:
+  schedule:
+    - cron: '0 * * * *' # Every hour
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        type: boolean
+        description: Only report expired clusters without destroying them.
+        default: false
+        required: false
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  OPENSHIFT_PULL_SECRET: ${{ secrets.OPENSHIFT_PULL_SECRET }}
+  SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+
+jobs:
+
+  cleanup:
+    name: Cleanup expired clusters
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+
+      - name: Checkout ${{ github.ref }}
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Load test cache
+        run: |
+          ./load-cache.sh --token "${{ secrets.ACCESS_TOKEN }}"
+
+      - name: Find and destroy expired clusters
+        id: cleanup
+        run: |
+          NOW=$(date +%s)
+          DESTROYED_CLUSTERS=""
+          DRY_RUN="${{ inputs.dry-run || 'false' }}"
+
+          echo "Current time: $(date -u +%Y-%m-%dT%H:%M:%SZ) (epoch: $NOW)"
+
+          for EXPIRATION_FILE in cache/clusters/*/expiration; do
+            if [[ ! -f "$EXPIRATION_FILE" ]]; then
+              continue
+            fi
+
+            CLUSTER_DIR=$(dirname "$EXPIRATION_FILE")
+            CLUSTER_NAME=$(basename "$CLUSTER_DIR")
+            EXPIRATION_TIMESTAMP=$(cat "$EXPIRATION_FILE")
+
+            # Read who created the cluster
+            CREATED_BY=""
+            if [[ -f "$CLUSTER_DIR/created-by" ]]; then
+              CREATED_BY=$(cat "$CLUSTER_DIR/created-by")
+            fi
+
+            if [[ -z "$EXPIRATION_TIMESTAMP" ]] || [[ ! "$EXPIRATION_TIMESTAMP" =~ ^[0-9]+$ ]]; then
+              echo "⚠️  Skipping cluster '$CLUSTER_NAME': invalid expiration timestamp."
+              continue
+            fi
+
+            EXPIRES_AT=$(date -u -d "@$EXPIRATION_TIMESTAMP" +%Y-%m-%dT%H:%M:%SZ)
+
+            if [[ "$NOW" -ge "$EXPIRATION_TIMESTAMP" ]]; then
+              echo "🗑️  Cluster '$CLUSTER_NAME' has expired (expired at $EXPIRES_AT, created by ${CREATED_BY:-unknown})."
+
+              if [[ "$DRY_RUN" == "true" ]]; then
+                echo "  ⏭️  Dry run: skipping destruction."
+              else
+                echo "  Destroying cluster '$CLUSTER_NAME'..."
+                if ./destroy-cluster.sh --cluster "$CLUSTER_NAME"; then
+                  echo "  ✅ Cluster '$CLUSTER_NAME' destroyed successfully."
+                else
+                  echo "  ❌ Failed to destroy cluster '$CLUSTER_NAME'."
+                fi
+              fi
+
+              DESTROYED_CLUSTERS="${DESTROYED_CLUSTERS}${CLUSTER_NAME}:${CREATED_BY:-unknown},"
+            else
+              REMAINING=$(( (EXPIRATION_TIMESTAMP - NOW) / 3600 ))
+              echo "⏳ Cluster '$CLUSTER_NAME' expires at $EXPIRES_AT (~${REMAINING}h remaining, created by ${CREATED_BY:-unknown})."
+            fi
+          done
+
+          echo "destroyed-clusters=$DESTROYED_CLUSTERS" >> $GITHUB_OUTPUT
+
+      - name: Save cluster state
+        if: always()
+        uses: ./.github/actions/save-cluster-state
+
+      - name: Send Slack notification
+        if: ${{ steps.cleanup.outputs.destroyed-clusters != '' }}
+        run: |
+          DESTROYED="${{ steps.cleanup.outputs.destroyed-clusters }}"
+          DRY_RUN="${{ inputs.dry-run || 'false' }}"
+          WEBHOOK="${{ secrets.SLACK_NOTIFICATION_WEBHOOK }}"
+
+          if [[ -z "$WEBHOOK" ]]; then
+            echo "⚠️  SLACK_NOTIFICATION_WEBHOOK secret is not set. Skipping notification."
+            exit 0
+          fi
+
+          # Read the slack users mapping
+          SLACK_USERS_FILE="slack-users.json"
+
+          # Build the message
+          MESSAGE=""
+          IFS=',' read -ra PAIRS <<< "$DESTROYED"
+          for PAIR in "${PAIRS[@]}"; do
+            if [[ -z "$PAIR" ]]; then
+              continue
+            fi
+
+            CLUSTER_NAME="${PAIR%%:*}"
+            GITHUB_USER="${PAIR#*:}"
+
+            # Look up Slack user ID
+            SLACK_ID=""
+            if [[ -f "$SLACK_USERS_FILE" ]]; then
+              SLACK_ID=$(jq -r --arg user "$GITHUB_USER" '.[$user] // ""' "$SLACK_USERS_FILE")
+            fi
+
+            if [[ -n "$SLACK_ID" ]]; then
+              USER_MENTION="<@${SLACK_ID}>"
+            else
+              USER_MENTION="$GITHUB_USER"
+            fi
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              MESSAGE="${MESSAGE}• Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) has expired (dry run, not destroyed)\n"
+            else
+              MESSAGE="${MESSAGE}• Cluster *${CLUSTER_NAME}* (created by ${USER_MENTION}) has been destroyed (expired)\n"
+            fi
+          done
+
+          LINK="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PAYLOAD=$(jq -n \
+            --arg text "🧹 *Cluster Cleanup Report*\n\n${MESSAGE}\n<${LINK}|View workflow run>" \
+            '{text: $text}')
+
+          curl -s -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK"

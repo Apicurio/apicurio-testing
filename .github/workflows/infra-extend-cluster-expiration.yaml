@@ -1,0 +1,55 @@
+name: "[Infra] Extend cluster expiration"
+run-name: "[Infra] Extend cluster ${{ inputs.cluster-name }} expiration by ${{ inputs.hours }} hours"
+on:
+  workflow_dispatch:
+    inputs:
+      cluster-name:
+        type: string
+        description: Name of the cluster to extend.
+        required: true
+      hours:
+        type: number
+        description: Number of hours from now until the new expiration.
+        required: true
+        default: 10
+
+jobs:
+
+  extend:
+    name: Extend expiration for ${{ inputs.cluster-name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+
+      - name: Checkout ${{ github.ref }}
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Load test cache
+        run: |
+          ./load-cache.sh --token "${{ secrets.ACCESS_TOKEN }}"
+
+      - name: Extend cluster expiration
+        run: |
+          CLUSTER_DIR="cache/clusters/${{ inputs.cluster-name }}"
+
+          if [[ ! -d "$CLUSTER_DIR" ]]; then
+            echo "❌ Cluster '${{ inputs.cluster-name }}' not found in cache."
+            exit 1
+          fi
+
+          OLD_EXPIRATION=""
+          if [[ -f "$CLUSTER_DIR/expiration" ]]; then
+            OLD_EXPIRATION=$(cat "$CLUSTER_DIR/expiration")
+            echo "Old expiration: $(date -u -d "@$OLD_EXPIRATION" +%Y-%m-%dT%H:%M:%SZ)"
+          else
+            echo "No previous expiration set."
+          fi
+
+          NEW_EXPIRATION=$(date -u -d "+${{ inputs.hours }} hours" +%s)
+          echo -n "$NEW_EXPIRATION" > "$CLUSTER_DIR/expiration"
+          echo "New expiration: $(date -u -d "@$NEW_EXPIRATION" +%Y-%m-%dT%H:%M:%SZ) (in ${{ inputs.hours }} hours)"
+
+      - name: Save cluster state
+        uses: ./.github/actions/save-cluster-state

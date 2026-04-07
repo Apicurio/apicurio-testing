@@ -39,6 +39,7 @@ jobs:
       control-nodes: 3
       compute-nodes: 2
       force: true
+      expiration-hours: 48
     secrets: inherit
 
   configure-cluster:

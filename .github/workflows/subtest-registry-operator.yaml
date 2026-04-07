@@ -210,6 +210,7 @@ jobs:
       control-nodes: 1 # Try with 1 control node to reduce resource usage. TODO: Adjust later if needed.
       compute-nodes: 2
       force: true
+      expiration-hours: 6
     secrets: inherit
 
 

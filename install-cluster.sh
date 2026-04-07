@@ -96,6 +96,8 @@ usage() {
     echo    "  --baseDomain <domain>        Base domain name for the cluster (default: apicurio-testing.org)"
     echo -e "  --log-level <level>          Log level for openshift-install (default: info). ${LIGHT_PURPLE}Use warn log level in CI to avoid leaking admin password.${NO_COLOR}"
     echo -e "  --force                     Force deletion of existing cluster directory. ${LIGHT_PURPLE}Might delete live cluster metadata.${NO_COLOR}"
+    echo    "  --expiration <hours>         Set cluster expiration time in hours from now. A timestamp will be saved to the cluster directory."
+    echo    "  --created-by <username>      Record who created the cluster (e.g. GitHub actor). Defaults to \$USER."
     echo    "  -h, --help                   Show this help message"
     exit 1
 }
@@ -109,6 +111,8 @@ CONTROL_PLANE_NODES="3"
 BASE_DOMAIN="apicurio-testing.org"
 LOG_LEVEL="info"
 FORCE="false"
+EXPIRATION_HOURS=""
+CREATED_BY="$USER"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -145,6 +149,14 @@ while [[ $# -gt 0 ]]; do
             FORCE="true"
             shift 1
             ;;
+        --expiration)
+            EXPIRATION_HOURS="$2"
+            shift 2
+            ;;
+        --created-by)
+            CREATED_BY="$2"
+            shift 2
+            ;;
         -h|--help)
             usage
             ;;
@@ -166,6 +178,14 @@ fi
 if [[ ! "$COMPUTE_NODES" =~ ^[0-9]+$ ]] || [[ "$COMPUTE_NODES" -lt 0 ]]; then
     echo "Error: --computeNodes must be a non-negative integer"
     exit 1
+fi
+
+# Validate expiration hours if provided
+if [[ -n "$EXPIRATION_HOURS" ]]; then
+    if [[ ! "$EXPIRATION_HOURS" =~ ^[0-9]+$ ]] || [[ "$EXPIRATION_HOURS" -lt 1 ]]; then
+        echo "Error: --expiration must be a positive integer (hours)"
+        exit 1
+    fi
 fi
 
 if [[ ! "$CONTROL_PLANE_NODES" =~ ^[0-9]+$ ]] || [[ "$CONTROL_PLANE_NODES" -lt 1 ]]; then
@@ -218,6 +238,14 @@ fi
 # Create a work directory for installing the OCP cluster
 mkdir -p $CLUSTER_DIR
 cd $CLUSTER_DIR || exit 1
+
+# Write cluster metadata
+echo -n "$CREATED_BY" > "$CLUSTER_DIR/created-by"
+if [[ -n "$EXPIRATION_HOURS" ]]; then
+    EXPIRATION_TIMESTAMP=$(date -u -d "+${EXPIRATION_HOURS} hours" +%s)
+    echo -n "$EXPIRATION_TIMESTAMP" > "$CLUSTER_DIR/expiration"
+    echo "Cluster will expire at $(date -u -d "@$EXPIRATION_TIMESTAMP" +%Y-%m-%dT%H:%M:%SZ) (in $EXPIRATION_HOURS hours)"
+fi
 
 "$BASE_DIR/download-ocp-installer.sh" --version "$OCP_VERSION"
 if [[ $? -ne 0 ]]; then
