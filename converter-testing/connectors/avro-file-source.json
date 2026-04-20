@@ -1,0 +1,13 @@
+{
+  "name": "avro-file-source",
+  "config": {
+    "connector.class": "org.apache.kafka.connect.file.FileStreamSourceConnector",
+    "tasks.max": "1",
+    "topic": "avro-converter-test",
+    "file": "/data/avro-source-input.txt",
+    "value.converter": "io.apicurio.registry.utils.converter.AvroConverter",
+    "value.converter.apicurio.registry.url": "http://registry:8080/apis/registry/v3",
+    "value.converter.apicurio.registry.auto-register": "true",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter"
+  }
+}
