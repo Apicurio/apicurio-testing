@@ -1,0 +1,18 @@
+apiVersion: registry.apicur.io/v1
+kind: ApicurioRegistry3
+metadata:
+  name: $APPLICATION_NAME
+spec:
+  app:
+    ingress:
+      host: $APP_INGRESS_URL
+      tlsTermination: edge
+    features:
+      resourceDeleteEnabled: true
+  ui:
+    ingress:
+      host: $UI_INGRESS_URL
+      tlsTermination: edge
+    env:
+      - name: REGISTRY_API_URL
+        value: https://$APP_INGRESS_URL/apis/registry/v3
