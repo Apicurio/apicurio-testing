@@ -353,14 +353,7 @@ export APICURIO_OPERATOR_URL="https://raw.githubusercontent.com/Apicurio/apicuri
 
 mkdir -p $APP_DIR
 
-# Create the namespace if it doesn't exist
-echo "Checking if namespace '$NAMESPACE' exists..."
-if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-    echo "Namespace '$NAMESPACE' already exists, skipping creation"
-else
-    echo "Creating namespace: $NAMESPACE"
-    kubectl create namespace "$NAMESPACE"
-fi
+ensure_namespace "$NAMESPACE"
 
 # Note: For Kafka-based profiles, Strimzi should be installed separately using install-strimzi.sh
 echo "Assuming Strimzi Operator is already installed if using Kafka-based profiles"

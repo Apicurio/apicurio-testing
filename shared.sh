@@ -121,6 +121,42 @@ function retry_with_backoff() {
     done
 }
 
+# Ensures a namespace exists and, on OpenShift, waits for SCC annotations to be applied.
+# Usage: ensure_namespace <namespace>
+function ensure_namespace() {
+    local ns="$1"
+    if [[ -z "$ns" ]]; then
+        error_exit "ensure_namespace requires a namespace argument."
+    fi
+
+    if kubectl get namespace "$ns" >/dev/null 2>&1; then
+        echo "Namespace '$ns' already exists, skipping creation"
+    else
+        echo "Creating namespace: $ns"
+        kubectl create namespace "$ns"
+    fi
+
+    # On OpenShift the namespace controller asynchronously adds SCC annotations.
+    # Deploying pods before the annotation lands causes FailedCreate errors.
+    echo "Waiting for namespace '$ns' SCC annotations..."
+    local timeout=60
+    local elapsed=0
+    while [ $elapsed -lt $timeout ]; do
+        local uid_range
+        uid_range=$(kubectl get namespace "$ns" \
+            -o jsonpath='{.metadata.annotations.openshift\.io/sa\.scc\.uid-range}' 2>/dev/null || echo "")
+        if [[ -n "$uid_range" ]]; then
+            echo "Namespace '$ns' is ready (uid-range: $uid_range)"
+            return 0
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    warning "Namespace '$ns' SCC annotations were not applied within ${timeout}s — proceeding anyway."
+    return 0
+}
+
 function wait_for() {
 
   local LABEL=$1

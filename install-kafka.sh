@@ -216,14 +216,7 @@ export APPS_URL="apps.$CLUSTER_NAME.$BASE_DOMAIN"
 
 mkdir -p $APP_DIR
 
-# Create the namespace if it doesn't exist
-echo "Checking if namespace '$NAMESPACE' exists..."
-if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-    echo "Namespace '$NAMESPACE' already exists, skipping creation"
-else
-    echo "Creating namespace: $NAMESPACE"
-    kubectl create namespace "$NAMESPACE"
-fi
+ensure_namespace "$NAMESPACE"
 
 # Search for the kafka-single-node.yaml file in the Strimzi installation
 echo "Searching for kafka-single-node.yaml in Strimzi installation..."

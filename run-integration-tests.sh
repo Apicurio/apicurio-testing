@@ -169,6 +169,7 @@ echo "------------------------------------"
 # modules that don't have JUnit 5 on their test classpath)
 echo "Building dependency modules..."
 ./mvnw install -am --no-transfer-progress \
+    -Pintegration-tests \
     -pl integration-tests \
     -DskipTests \
     -Dmaven.javadoc.skip=true

@@ -82,18 +82,11 @@ export OPERATOR_CHANNEL="stable"
 export CATALOG_SOURCE="certified-operators"
 export CATALOG_SOURCE_NAMESPACE="openshift-marketplace"
 export SUBSCRIPTION_NAME="$OPERATOR_NAME-$NAMESPACE"
-export WAIT_TIMEOUT_SECONDS=300  # Max time to wait for the operator to be ready
+export WAIT_TIMEOUT_SECONDS=600  # Max time to wait for the operator to be ready
 
 mkdir -p $APP_DIR
 
-# Create the namespace if it doesn't exist
-echo "Checking if namespace '$NAMESPACE' exists..."
-if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-    echo "Namespace '$NAMESPACE' already exists, skipping creation"
-else
-    echo "Creating namespace: $NAMESPACE"
-    kubectl create namespace "$NAMESPACE"
-fi
+ensure_namespace "$NAMESPACE"
 
 # Install all YAML files from the Elasticsearch Operator template directory
 ES_TEMPLATE_DIR="$BASE_DIR/templates/elasticsearch-operator"
@@ -127,6 +120,18 @@ done
 
 if [[ -z "$CSV_NAME" ]]; then
   echo "ERROR: Timed out waiting for ClusterServiceVersion to be created."
+  echo ""
+  echo "Collecting diagnostic information..."
+  echo "--- Subscription status ---"
+  kubectl get subscription ${SUBSCRIPTION_NAME} -n ${NAMESPACE} -o yaml 2>/dev/null || echo "(subscription not found)"
+  echo "--- CatalogSource status ---"
+  kubectl get catalogsource ${CATALOG_SOURCE} -n ${CATALOG_SOURCE_NAMESPACE} -o yaml 2>/dev/null || echo "(catalogsource not found)"
+  echo "--- InstallPlans in namespace ---"
+  kubectl get installplan -n ${NAMESPACE} 2>/dev/null || echo "(no installplans)"
+  echo "--- CSVs in namespace ---"
+  kubectl get csv -n ${NAMESPACE} 2>/dev/null || echo "(no CSVs)"
+  echo "--- Events in namespace ---"
+  kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -20
   exit 1
 fi
 
@@ -145,4 +150,12 @@ while [ $SECONDS_WAITED -lt $WAIT_TIMEOUT_SECONDS ]; do
 done
 
 echo "ERROR: Timed out waiting for CSV '${CSV_NAME}' to reach 'Succeeded' phase."
+echo ""
+echo "Collecting diagnostic information..."
+echo "--- CSV status ---"
+kubectl get csv "$CSV_NAME" -n ${NAMESPACE} -o yaml 2>/dev/null || echo "(CSV not found)"
+echo "--- Operator pods ---"
+kubectl get pods -n ${NAMESPACE} 2>/dev/null || echo "(no pods)"
+echo "--- Events in namespace ---"
+kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -20
 exit 1

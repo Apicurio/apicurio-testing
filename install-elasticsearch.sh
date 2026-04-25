@@ -180,14 +180,7 @@ export APP_DIR="$APPS_DIR/elasticsearch"
 
 mkdir -p $APP_DIR
 
-# Create the namespace if it doesn't exist
-echo "Checking if namespace '$NAMESPACE' exists..."
-if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-    echo "Namespace '$NAMESPACE' already exists, skipping creation"
-else
-    echo "Creating namespace: $NAMESPACE"
-    kubectl create namespace "$NAMESPACE"
-fi
+ensure_namespace "$NAMESPACE"
 
 # Set the Elasticsearch template directory
 ES_TEMPLATE_DIR="$BASE_DIR/templates/elasticsearch"
