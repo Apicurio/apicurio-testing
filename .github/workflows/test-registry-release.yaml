@@ -174,7 +174,7 @@ jobs:
       CLUSTER_NAME: ci420
       APICURIO_REGISTRY_VERSION: ${{ inputs.releaseVersion }}
       CONTROL_PLANE_NODES: 3
-      COMPUTE_NODES: 3 # TODO: Increase if needed.
+      COMPUTE_NODES: 5
       OPERATOR_IMAGE: ${{ inputs.operatorImage }}
       APP_IMAGE: ${{ inputs.appImage }}
       UI_IMAGE: ${{ inputs.uiImage }}
@@ -2087,7 +2087,7 @@ jobs:
       CLUSTER_NAME: ci416
       APICURIO_REGISTRY_VERSION: ${{ inputs.releaseVersion }}
       CONTROL_PLANE_NODES: 3
-      COMPUTE_NODES: 3
+      COMPUTE_NODES: 5
       OPERATOR_IMAGE: ${{ inputs.operatorImage }}
       APP_IMAGE: ${{ inputs.appImage }}
       UI_IMAGE: ${{ inputs.uiImage }}
